@@ -107,40 +107,34 @@ how Cloudinary capabilities map to problem statement requirements.
 ## High-Level Architecture
 
 ```
-client (React)  ⇄  server (Node/Express)  ⇄  Cloudinary (media + AI)
+client (React)  ⇄  server (Node/Express)  ⇄  Cloudinary (media + AI Vision)
                           │
-                          ⇄  PostgreSQL (projects, locations, metadata)
-                          ⇄  LLM provider (embeddings, report synthesis)
+                          ⇄  MongoDB Atlas (projects, locations, evidence)
+                          ⇄  LLM provider (M6+: indicator classification,
+                                            embeddings, report synthesis)
 ```
 
 Full detail: [ARCHITECTURE.md](ARCHITECTURE.md).
 
-## Planned Technology Stack
+## Technology Stack
 
-| Layer | Choice |
-|---|---|
-| Frontend | React + TypeScript + Vite, Tailwind CSS |
-| Backend | Node.js + TypeScript + Express |
-| Database | PostgreSQL + Prisma ORM |
-| Media platform | Cloudinary (upload, transformations, AI add-ons, Search API) |
-| AI / LLM | Claude or OpenAI API (embeddings + report text generation) |
-| Semantic search | Cloudinary Search API (metadata/tags) + optional `pgvector` for description-level similarity |
-
-This stack is a starting point chosen for hackathon speed and strong
-Cloudinary SDK support — not yet implemented, and open to change.
+| Layer | Choice | Status |
+|---|---|---|
+| Frontend | React + TypeScript + Vite, Tailwind CSS | Implemented |
+| Backend | Node.js + TypeScript + Express | Implemented |
+| Database | MongoDB Atlas, official `mongodb` driver (no ORM) | Implemented |
+| Media platform | Cloudinary (upload, transformations, AI Vision analysis) | Implemented — AI analysis blocked on account add-on, see server/README.md |
+| AI / LLM | none yet | Deferred to M6/M7 on purpose |
+| Semantic search | MongoDB Atlas Vector Search | Deferred to M7 on purpose |
 
 ## Local Development Setup
-
-> Not yet applicable — no application code exists yet. This section will be
-> filled in once `client/` and `server/` are scaffolded.
-
-Planned setup (once implemented):
 
 ```bash
 # clone and enter the repo
 git clone <repo-url> && cd VisEvi
 
-# copy environment variables and fill in real values
+# copy environment variables and fill in real values — a MongoDB Atlas
+# connection string and Cloudinary credentials are both required
 cp .env.example .env
 
 # backend
@@ -148,6 +142,7 @@ cd server && npm install && npm run dev
 
 # frontend (separate terminal)
 cd client && npm install && npm run dev
+cp client/.env.example client/.env.local
 ```
 
 ## Environment Variables
@@ -156,22 +151,26 @@ See [.env.example](.env.example) for the full list. At minimum, expect to
 configure:
 
 - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
-- `DATABASE_URL`
-- An LLM provider key (e.g. `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`)
+- `DATABASE_URL` — a MongoDB Atlas connection string, database name included
+  in the path (e.g. `mongodb+srv://user:pass@cluster.mongodb.net/visevi`)
 
 ## Current Project Status
 
-**Initialization stage.** No application features are implemented yet. What
-exists so far:
+**M1–M2 implemented and verified end-to-end against real Cloudinary and
+MongoDB Atlas accounts.** What exists so far:
 
 - [x] Problem statement read and transcribed ([PROBLEM_STATEMENT.md](PROBLEM_STATEMENT.md))
 - [x] Requirements extracted and prioritized ([REQUIREMENTS.md](REQUIREMENTS.md))
-- [x] Architecture direction documented ([ARCHITECTURE.md](ARCHITECTURE.md))
-- [x] Repository scaffolding (this README, docs, folder structure)
-- [ ] Backend scaffolded
-- [ ] Frontend scaffolded
-- [ ] Cloudinary integration
-- [ ] Any feature work
+- [x] Architecture documented ([ARCHITECTURE.md](ARCHITECTURE.md))
+- [x] Backend and frontend scaffolded (M1)
+- [x] Upload pipeline: client → server → Cloudinary → MongoDB, verified with
+      real credentials
+- [x] Cloudinary AI Vision analysis wired (M2) — code path verified working;
+      blocked on the Cloudinary account having an AI analysis add-on enabled
+      (see server/README.md)
+- [ ] Verification checks (consistency, duplicate detection) — M5
+- [ ] Impact indicator mapping — M6
+- [ ] Semantic search — M7
 
 Nothing below "Current" should be read as already built.
 

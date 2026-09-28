@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+/*
+ * Dark theme is the default look, not a toggle — see docs/UI_DIRECTION.md.
+ * Palette pulled from the connectome/neuron visual reference: near-black
+ * background, vivid multi-hue accents reserved for meaningful categories
+ * (verification status, indicator type, project type) rather than decoration.
+ */
+:root {
+  --color-bg: #08090c;
+  --color-surface: #101218;
+  --color-border: #1f2230;
+  --color-text: #e6e8ef;
+  --color-text-muted: #8b8fa3;
+
+  --color-accent-red: #ff4d4d;
+  --color-accent-orange: #ff9640;
+  --color-accent-yellow: #ffd23f;
+  --color-accent-pink: #ff6fb0;
+  --color-accent-blue: #4d6bff;
+  --color-accent-cyan: #38d9ff;
+  --color-accent-green: #3ddc84;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}

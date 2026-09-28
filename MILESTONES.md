@@ -22,23 +22,45 @@ Status legend: `[x]` done · `[ ]` not started · `[~]` in progress
 - [x] Second differentiator locked in: impact indicator auto-mapping
 - [x] UI direction captured (dark theme, connectome-inspired Evidence Graph)
 
-## M1 — Core Scaffolding — target 2026-09-29 → 2026-09-30
+## M1 — Core Scaffolding — 2026-09-28 → 2026-09-29 — DONE
 
-- [ ] Cloudinary account set up, credentials in `.env`
-- [ ] `server/` scaffolded: Node + TypeScript + Express, Prisma schema for
-      Project / Location / Asset / Observation
-- [ ] `client/` scaffolded: React + TypeScript + Vite, base routing, dark
-      theme shell
-- [ ] Upload endpoint working end-to-end: client → server → Cloudinary,
-      asset record persisted in Postgres
+- [x] `server/` scaffolded: Node + TypeScript + Express.
+- [x] `client/` scaffolded: React 19 + TypeScript + Vite, Tailwind v4, React
+      Router, dark theme shell (palette from docs/UI_DIRECTION.md), two
+      routes (Dashboard, Upload). Builds and lints clean.
+- [x] Upload endpoint implemented and verified end-to-end against real
+      Cloudinary and MongoDB Atlas accounts (client → server → Cloudinary,
+      with the pre-processing pass — auto-orient + improve + sharpen —
+      → persisted).
+- [x] Database: originally scaffolded with PostgreSQL + Prisma; **migrated
+      to MongoDB Atlas + the official `mongodb` driver (no ORM)** on
+      2026-09-29 per corrected architecture direction — see WORKLOG.md for
+      why and server/README.md for the current setup. Nothing Postgres-
+      related remains in the codebase.
 
-## M2 — Core Pipeline — target 2026-10-01
+## M2 — Core Pipeline — 2026-09-29 — DONE (code), BLOCKED (real AI output)
 
-- [ ] Cloudinary AI add-on wired for auto-tagging/captioning
-- [ ] Structured observation written per asset (project/location/stage/tags/
-      objects/activity) — dynamically generated, per the problem owner's
-      metadata spec, never static/templated
-- [ ] Project / location / timeline browsing UI
+- [x] Cloudinary AI Vision analysis wired: `server/src/lib/cloudinary.ts`
+      calls the Analyze API (Beta) `ai_vision_general` model directly
+      (the installed SDK doesn't wrap this endpoint — verified by reading
+      its source). See server/README.md for the full explanation and
+      official doc links.
+- [x] Structured observation shape implemented (`activity`/`objects`/`tags`/
+      `caption`/`confidence`/`source`/`analyzedAt`) — dynamically derived
+      from real AI responses, no static/template values, confidence never
+      invented (left `null` since the endpoint doesn't provide one).
+- [x] Failure behavior implemented and verified: if AI analysis fails (add-on
+      not enabled, auth error, etc.), the upload still succeeds — asset and
+      Cloudinary media are real and persisted — but `observation` stays
+      `null` and the response carries an explicit `observationError`. Never
+      silently fakes a result.
+- [ ] **Blocked**: this Cloudinary account has no AI analysis add-on enabled
+      (tested `ai_vision_general`, `captioning`, `google_tagging` — all
+      return "account does not have an active subscription for feature").
+      Code path is fully verified correct via the real error response; a
+      real *successful* observation still needs an add-on enabled on the
+      account. See WORKLOG.md.
+- [ ] Project / location / timeline browsing UI — not started
 
 ## M3 — Search, Before/After, Basic Report — target 2026-10-02
 

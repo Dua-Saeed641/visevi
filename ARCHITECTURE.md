@@ -1,8 +1,11 @@
 # Architecture
 
-> Status: **Planned** — nothing described here is implemented yet. This
-> document records the current architectural direction so implementation
-> stays consistent as it's built out. Revise this file when decisions change.
+> Status: **Partially implemented.** Media pipeline (upload, pre-processing,
+> AI Vision analysis) and the MongoDB evidence store are implemented and
+> verified end-to-end (M1–M2). Verification checks, indicator mapping, and
+> semantic search below are still planned (M5–M7). This document records the
+> architectural direction so implementation stays consistent as it's built
+> out — revise it when decisions change.
 
 ## Core Product Loop
 
@@ -47,7 +50,7 @@ before?), not just once per upload. See
                             │              └────────────────────┘
                             ▼
                      ┌──────────────┐      ┌────────────────────┐
-                     │  PostgreSQL  │      │   LLM provider      │
+                     │   MongoDB    │      │   LLM provider      │
                      │ (projects,   │      │ (report synthesis,  │
                      │  locations,  │◄────►│  embeddings for     │
                      │  evidence    │      │  semantic search)   │
@@ -58,16 +61,22 @@ before?), not just once per upload. See
 - **client** — the web app users interact with: upload media, browse
   projects/locations/timelines, run searches, build and export reports.
 - **server** — API layer. Orchestrates uploads to Cloudinary, triggers AI
-  analysis, writes structured observations to Postgres, serves search and
+  analysis, writes structured observations to MongoDB, serves search and
   report-generation endpoints.
 - **Cloudinary** — system of record for the media itself. Handles storage,
   delivery, transformations, and AI-assisted analysis (auto-tagging,
   captioning, content-aware operations). Every asset's `public_id` + version
   history is the traceability anchor referenced everywhere else in the system.
-- **PostgreSQL** — system of record for *structured knowledge about* the
-  media: projects, locations, timelines, AI-derived observations, user
-  annotations, report definitions. Cloudinary stores the pixels; Postgres
-  stores what the platform knows about them.
+- **MongoDB (Atlas)** — system of record for *structured knowledge about*
+  the media: projects, locations, timelines, AI-derived observations, user
+  annotations, report definitions. Cloudinary stores the pixels; MongoDB
+  stores what the platform knows about them. Accessed via the official
+  `mongodb` Node.js driver directly — no ORM. Three collections
+  (`projects`, `locations`, `assets`), kept normalized by reference rather
+  than embedded, since projects/locations need independent upsert-by-name
+  semantics; see server/src/lib/models.ts for the documented shape and
+  server/README.md for why this isn't "a relational schema forced into
+  Mongo."
 - **LLM provider** — used for three things: (1) generating embeddings for
   semantic search over media descriptions/observations, (2) synthesizing
   structured observations into narrative report text, (3) classifying a
@@ -84,31 +93,33 @@ whole:
 
 - **Consistency check** — compares an asset's AI-detected content against its
   claimed project/location/stage/date. Runs as part of the same server-side
-  step that writes structured observations to Postgres. A mismatch sets a
-  `verification_status` field (`verified` / `flagged`) rather than silently
-  accepting the claim — this is what feeds the report's "N verified
+  step that writes structured observations to MongoDB. A mismatch sets the
+  asset's `verificationStatus` field (`UNVERIFIED` / `VERIFIED` / `FLAGGED`
+  — already in the schema, not yet populated by a real check) rather than
+  silently accepting the claim — this is what feeds the report's "N verified
   activities" count.
 - **Duplicate/reuse detection** — perceptual hash (e.g. pHash) computed per
-  asset on upload, checked against a hash index in Postgres. A near-duplicate
-  hit is surfaced as a flag on both the new and prior asset, not silently
-  deduplicated away — the evidence trail needs to show *that* a reuse was
-  detected, not just hide it.
+  asset on upload, checked against an indexed `perceptualHash` field across
+  the `assets` collection (index already created in `lib/mongo.ts`). A
+  near-duplicate hit is surfaced as a flag on both the new and prior asset,
+  not silently deduplicated away — the evidence trail needs to show *that* a
+  reuse was detected, not just hide it.
 - **AI-described before/after change** — when two assets are compared, the
   vision/LLM pass doesn't just render them side by side; it's asked to
   describe *what changed* (e.g. coverage estimate, new/removed objects), and
   that description is stored alongside the comparison, traceable to both
   source assets.
 
-All three write into the same `verification_status` / `change_description`
-fields Postgres already needs for structured observations — no separate
-service, just extra columns and one extra server-side step per upload.
+All three write into fields the `Asset` document already has (see
+`server/src/lib/models.ts`) — no separate service, just population logic and
+one extra server-side step per upload.
 
 ## Impact Indicator Mapping
 
 Second differentiator (full rationale in
 [REQUIREMENTS.md § New/Unique Feature](REQUIREMENTS.md#newunique-feature-impact-indicator-auto-mapping)).
 A small, curated lookup table (`tag/activity → SDG target code`) lives in
-Postgres. When a project's report is generated, the server aggregates that
+MongoDB. When a project's report is generated, the server aggregates that
 project's tags/activities and asks the LLM to classify them against the
 table, producing a short list of supported indicators (e.g. "SDG 7.1"), each
 linked back to the specific assets that back it. No new infrastructure —
@@ -123,7 +134,7 @@ custom infrastructure:
 | Requirement (from problem statement)         | Cloudinary capability |
 |-----------------------------------------------|------------------------|
 | Analyze/organize large media collections       | Upload API, Media Library, structured metadata |
-| Identify projects/activities/locations/signals | AI add-ons (auto-tagging, auto-captioning), Google Vision add-on |
+| Identify projects/activities/locations/signals | AI Vision (Analyze API `ai_vision_general`) — implemented in `server/src/lib/cloudinary.ts`, blocked on the add-on being enabled on the account; see server/README.md |
 | Reliable detection on poor-quality field photos | Transformation API pre-processing (`e_improve`, `e_sharpen`, auto-orient) before AI add-on analysis |
 | Before/after comparison                         | Versioning, transformation API (overlays/diff rendering) |
 | AI-powered metadata, tagging, semantic search   | Structured metadata, tags, Search API |
@@ -131,43 +142,42 @@ custom infrastructure:
 | Traceability to original assets/transformations | `public_id`, asset versioning, derived-asset tracking |
 | Verification (named in problem context, not in the six goals) | Structured metadata for `verification_status`, versioning as the audit trail for consistency/duplicate checks |
 
-Custom services (Postgres, LLM) exist to add the relational/semantic layer on
+Custom services (MongoDB, LLM) exist to add the relational/semantic layer on
 top of Cloudinary's media layer — not to replace it.
 
-## Planned Technology Stack
+## Technology Stack
 
 See README.md for the same list with setup instructions. Summary:
 
-- **Frontend:** React + TypeScript + Vite, Tailwind CSS
-- **Backend:** Node.js + TypeScript + Express
-- **Database:** PostgreSQL (Prisma ORM)
-- **Media platform:** Cloudinary (upload, transformations, AI add-ons, Search API)
-- **AI/LLM:** Claude or OpenAI API for embeddings + report text generation
-- **Semantic search:** metadata/tag search via Cloudinary Search API, optional
-  vector similarity via `pgvector` for description-level semantic matching
-
-These are the current best-fit choices given a short hackathon timeline
-(fast to scaffold, strong Cloudinary SDK support, TypeScript end-to-end).
-They are not mandated by the problem statement and can change.
+- **Frontend:** React + TypeScript + Vite, Tailwind CSS — implemented (M1)
+- **Backend:** Node.js + TypeScript + Express — implemented (M1)
+- **Database:** MongoDB Atlas, official `mongodb` driver, no ORM — implemented (M2)
+- **Media platform:** Cloudinary (upload, transformations, AI Vision analysis) — implemented (M1–M2)
+- **AI/LLM:** none yet — deliberately deferred to M6 (indicator classification)
+  and M7 (embeddings); not needed for M1–M4
+- **Semantic search:** deferred to M7 — MongoDB Atlas Vector Search, no
+  separate vector database
 
 ## Repository Layout
 
 ```
 VisEvi/
-├── client/    # React frontend (to be scaffolded)
-├── server/    # Node/Express API (to be scaffolded)
+├── client/    # React frontend — implemented
+├── server/    # Node/Express API — implemented (M1–M2)
 ├── docs/      # architecture notes, diagrams, decisions
 ```
 
-`client/` and `server/` are currently placeholders — see each directory's
-README for what will go there.
+See each directory's README for setup and structure.
 
 ## Open Architectural Questions
 
 - Exact before/after comparison UX (side-by-side vs. slider vs. diff overlay)
   — affects whether we need custom image-diff rendering or can rely purely on
   Cloudinary transformation chaining.
-- Whether semantic search needs a dedicated vector store or whether
-  `pgvector` inside the existing Postgres instance is sufficient at hackathon
-  scale (it is — no separate vector DB planned unless data volume demands it).
+- Whether MongoDB Atlas Vector Search is sufficient at hackathon scale for
+  M7 (it should be — no separate vector DB planned unless data volume
+  demands it).
 - Report export format(s): in-app visual page vs. downloadable PDF/image.
+- Which Cloudinary AI add-on to actually enable for M2 to produce real
+  observations — see server/README.md § Notes on the Cloudinary AI Vision
+  call; currently blocked on account-level add-on subscription.

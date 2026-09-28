@@ -81,7 +81,7 @@ Priority tiers:
 - [ ] **Tamper-evident provenance chain** — hash-chain the audit log of
       uploads/edits (asset hash + Cloudinary public_id/version + timestamp)
       so a record can't be silently altered after field capture. Cheap to add
-      once the verification layer and Postgres audit trail exist.
+      once the verification layer and MongoDB audit trail exist.
 - [ ] **Auto-narrated progress video** — stitch a project's timeline (stills +
       clips) into a narrated summary video via Cloudinary's video API,
       voiced from the LLM-generated impact summary (StudyO-style pattern from
