@@ -32,3 +32,49 @@ body {
   background-color: var(--color-bg);
   color: var(--color-text);
 }
+
+/* ── Visual language (see docs/UI_DIRECTION.md) ───────────────────────────
+ * The six-hue spectrum bar from the reference posters, used as a thin
+ * signature accent — never as a large fill. */
+.spectrum-bar {
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    var(--color-accent-red) 0 16.66%,
+    var(--color-accent-yellow) 0 33.33%,
+    var(--color-accent-pink) 0 50%,
+    var(--color-accent-blue) 0 66.66%,
+    var(--color-accent-cyan) 0 83.33%,
+    var(--color-accent-green) 0 100%
+  );
+}
+
+/* Big, light numerals for headline figures (poster-style "02 / 04"). */
+.numeral {
+  font-weight: 300;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+body {
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Faint dotted grid behind the app so the dark canvas has some depth. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: linear-gradient(to bottom, black, transparent 70%);
+}
+
+@media print {
+  body::before { display: none; }
+  .spectrum-bar { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+}

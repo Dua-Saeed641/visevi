@@ -1,0 +1,12 @@
+# Netlify: build the Vite client and serve it as a single-page app.
+# Set VITE_API_BASE_URL (Site settings -> Environment) to the deployed API URL
+# BEFORE building — Vite inlines it at build time.
+[build]
+  base = "client"
+  command = "npm run build"
+  publish = "dist"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
