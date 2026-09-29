@@ -1,263 +1,300 @@
-import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useEffect, useState, type ReactNode } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { StatusBadge } from '../components/StatusBadge'
-import { api, type CompareResult } from '../lib/api'
+import { Empty, Loading, Notice, PageHeader } from '../components/ui'
+import { api, thumbUrl, type CompareResult, type CompareSide, type ProjectReport, type ProjectSimple } from '../lib/api'
+
+const fmt = (iso: string) => new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+
+/** Drag-to-reveal comparison. A native range input sits on top, so the slider is
+ * draggable, touch-friendly and keyboard accessible (arrow keys). */
+function RevealSlider({ before, after }: { before: CompareSide; after: CompareSide }) {
+  const [pos, setPos] = useState(50)
+  return (
+    <div>
+      <div className="relative aspect-[4/3] max-h-[78vh] w-full select-none overflow-hidden bg-tint">
+        <img src={thumbUrl(after, 1400)} alt={after.observation?.caption ?? 'After'} className="absolute inset-0 h-full w-full object-contain" draggable={false} />
+        <img
+          src={thumbUrl(before, 1400)}
+          alt={before.observation?.caption ?? 'Before'}
+          className="absolute inset-0 h-full w-full object-contain"
+          style={{ clipPath: `inset(0 ${100 - pos}% 0 0)` }}
+          draggable={false}
+        />
+        <span className="absolute left-4 top-4 bg-ink px-3 py-1.5 text-base font-bold text-white">Before · {fmt(before.createdAt)}</span>
+        <span className="absolute right-4 top-4 bg-brand px-3 py-1.5 text-base font-bold text-white">After · {fmt(after.createdAt)}</span>
+        <div className="pointer-events-none absolute inset-y-0 w-1 -translate-x-1/2 bg-white shadow-[0_0_0_1px_rgba(42,11,14,0.35)]" style={{ left: `${pos}%` }}>
+          <div className="absolute left-1/2 top-1/2 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-4 border-white bg-brand shadow-lg">
+            <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 6l-6 6 6 6M15 6l6 6-6 6" />
+            </svg>
+          </div>
+        </div>
+        <input
+          type="range" min={0} max={100} value={pos}
+          onChange={(e) => setPos(Number(e.target.value))}
+          aria-label="Drag to reveal the before image on the left and the after image on the right"
+          className="absolute inset-0 h-full w-full cursor-ew-resize opacity-0"
+        />
+      </div>
+      <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+        <button className="btn btn-outline" onClick={() => setPos(100)}>Show before</button>
+        <button className="btn btn-outline" onClick={() => setPos(50)}>Split</button>
+        <button className="btn btn-outline" onClick={() => setPos(0)}>Show after</button>
+      </div>
+    </div>
+  )
+}
+
+function SideBySide({ before, after }: { before: CompareSide; after: CompareSide }) {
+  return (
+    <div className="grid gap-6 md:grid-cols-2">
+      {[{ l: 'Before', s: before }, { l: 'After', s: after }].map(({ l, s }) => (
+        <figure key={l}>
+          <div className="flex items-baseline justify-between border-b-4 border-ink pb-2">
+            <figcaption className="text-2xl font-bold">{l}</figcaption>
+            <span className="text-lg font-bold text-brand">{fmt(s.createdAt)}</span>
+          </div>
+          <img src={thumbUrl(s, 1000)} alt={s.observation?.caption ?? l} className="mt-3 w-full bg-tint" />
+        </figure>
+      ))}
+    </div>
+  )
+}
+
+function Record({ label, side }: { label: string; side: CompareSide }) {
+  const obs = side.observation
+  return (
+    <article className="card p-7">
+      <div className="flex items-center justify-between gap-4">
+        <h3 className="text-2xl font-bold">{label}</h3>
+        <StatusBadge status={side.verificationStatus} />
+      </div>
+      <p className="mt-1 text-lg text-muted">{fmt(side.createdAt)} &middot; {side.location}{side.stage ? ` · ${side.stage}` : ''}</p>
+      {obs?.activity && <p className="mt-5 text-xl font-bold text-brand">{obs.activity}</p>}
+      {obs?.caption ? <p className="mt-2 text-xl leading-relaxed">{obs.caption}</p> : <p className="mt-4 text-lg text-muted">No AI description for this image.</p>}
+      {obs && obs.tags.length > 0 && <p className="mt-4 text-lg text-muted">{obs.tags.join(' / ')}</p>}
+      <p className="mt-5 break-all font-mono text-base text-muted">{side.cloudinaryPublicId} &middot; v{side.cloudinaryVersion}</p>
+      <a href={side.cloudinaryUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block text-lg font-bold text-brand underline underline-offset-4 hover:text-brand-dark">
+        Open source asset
+      </a>
+    </article>
+  )
+}
+
+function Tile({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="card p-6">
+      <p className="text-sm font-bold uppercase tracking-[0.14em] text-muted">{label}</p>
+      <div className="mt-3">{children}</div>
+    </div>
+  )
+}
+
+function InsightCard({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="card card-accent p-7">
+      <h3 className="text-2xl font-bold">{title}</h3>
+      <div className="mt-4 space-y-4 text-xl leading-relaxed">{children}</div>
+    </section>
+  )
+}
+
+function Chips({ title, items }: { title: string; items: string[] }) {
+  if (items.length === 0) return null
+  return (
+    <div>
+      <p className="mb-2 text-base font-bold text-muted">{title}</p>
+      <ul className="flex flex-wrap gap-2.5">
+        {items.map((t) => (
+          <li key={t} className="border-2 border-brand px-3.5 py-1.5 text-lg font-bold text-brand">{t}</li>
+        ))}
+      </ul>
+    </div>
+  )
+}
 
 export function Compare() {
-  const [searchParams] = useSearchParams()
-  const beforeId = searchParams.get('beforeId') ?? undefined
-  const afterId = searchParams.get('afterId') ?? undefined
+  const [params, setParams] = useSearchParams()
+  const beforeId = params.get('beforeId') ?? undefined
+  const afterId = params.get('afterId') ?? undefined
 
-  const [compareData, setCompareData] = useState<CompareResult | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState<CompareResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [mode, setMode] = useState<'slider' | 'side'>('slider')
+
+  const [projects, setProjects] = useState<ProjectSimple[]>([])
+  const [projectId, setProjectId] = useState('')
+  const [report, setReport] = useState<ProjectReport | null>(null)
 
   useEffect(() => {
-    let ignore = false
-    api
-      .getCompareReport(beforeId, afterId)
-      .then((data) => {
-        if (!ignore) {
-          setCompareData(data)
-          setError(null)
-          setLoading(false)
-        }
-      })
-      .catch((err: unknown) => {
-        if (!ignore) {
-          setError(err instanceof Error ? err.message : 'Failed to generate comparison')
-          setLoading(false)
-        }
-      })
+    api.listProjects().then((l) => {
+      const usable = l.filter((p) => p.assetCount >= 2)
+      setProjects(usable)
+      // Open on the project with the most evidence.
+      const best = [...usable].sort((a, b) => b.assetCount - a.assetCount)[0]
+      if (best) setProjectId((cur) => cur || best.id)
+    }).catch(() => {})
+  }, [])
 
-    return () => {
-      ignore = true
-    }
+  useEffect(() => {
+    if (!projectId) return
+    let ignore = false
+    api.getProjectReport(projectId).then((r) => {
+      if (ignore) return
+      setReport(r)
+      // No pair in the URL yet: open the project's featured before/after.
+      if (!beforeId && !afterId && r.beforeAfter) {
+        setParams({ beforeId: r.beforeAfter.beforeId, afterId: r.beforeAfter.afterId }, { replace: true })
+      }
+    }).catch(() => {})
+    return () => { ignore = true }
+  }, [projectId, beforeId, afterId, setParams])
+
+  useEffect(() => {
+    if (!beforeId || !afterId) return
+    let ignore = false
+    api.getCompareReport(beforeId, afterId)
+      .then((d) => { if (!ignore) { setData(d); setError(null) } })
+      .catch((e: unknown) => { if (!ignore) setError(e instanceof Error ? e.message : 'Failed to compare') })
+    return () => { ignore = true }
   }, [beforeId, afterId])
 
+  // Loading = a pair is requested but what's on screen isn't it yet.
+  const showing = data ? [data.before.id, data.after.id] : []
+  const loading = !!(beforeId && afterId) && !error && !(showing.includes(beforeId) && showing.includes(afterId))
+
+  const c = data?.comparison
+  const levelLabel = c && { comparable: 'Comparable pair', limited: 'Limited comparability', 'not-comparable': 'Not a valid before and after' }[c.comparability.level]
+  const tier = c && { 'same-photo': 'Near-identical', similar: 'Similar framing', different: 'Substantially different', unrelated: 'Visually unrelated', unknown: 'Not available' }[c.scene.tier]
+
   return (
-    <div className="space-y-8">
-      {/* Page Title */}
-      <div>
-        <div className="flex items-center gap-2 text-xs font-mono text-[var(--color-accent-cyan)] uppercase tracking-wider">
-          <span>Visual Verification</span> • <span>Change Tracking</span>
-        </div>
-        <h1 className="mt-1 text-3xl font-bold tracking-tight">Before / After Comparison</h1>
-        <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-          Compare evidence pairs across time intervals to track site progress, activity shifts, and visual transformations.
-        </p>
-      </div>
+    <div>
+      <PageHeader eyebrow="Before / after" title="What changed?">
+        Two photos of a site, in time order, compared using what the AI saw in each.
+      </PageHeader>
 
-      {error && (
-        <div className="rounded-xl border border-[var(--color-accent-red)]/30 bg-[var(--color-accent-red)]/10 p-5 text-sm text-[var(--color-accent-red)]">
-          {error}
+      {projects.length > 0 && (
+        <div className="card mb-10 grid gap-6 p-7 lg:grid-cols-[minmax(0,24rem)_1fr]">
+          <label className="block">
+            <span className="mb-2 block text-lg font-bold">Project</span>
+            <select className="input" value={projectId} onChange={(e) => { setProjectId(e.target.value); setParams({}, { replace: true }); setData(null) }}>
+              {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </label>
+          <div>
+            <p className="mb-2 text-lg font-bold">Suggested pairs</p>
+            {report && report.suggestedPairs.length > 0 ? (
+              <ul className="flex flex-wrap gap-3">
+                {report.suggestedPairs.map((p) => (
+                  <li key={p.location}>
+                    <Link to={`/compare?beforeId=${p.beforeId}&afterId=${p.afterId}`} className="block border-2 border-brand bg-white px-4 py-2.5 text-lg font-bold text-brand hover:bg-brand hover:text-white">
+                      {p.location} &middot; {p.spanDays} days apart
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-lg text-muted">No location here has two unflagged photos yet.</p>
+            )}
+            <p className="mt-3 text-base text-muted">You can also select two photos in the Evidence library.</p>
+          </div>
         </div>
       )}
 
-      {loading && (
-        <div className="py-16 text-center text-sm text-[var(--color-text-muted)]">
-          Analyzing evidence pair and computing visual diff...
-        </div>
-      )}
+      {error && <Notice>{error}</Notice>}
+      {loading && <Loading>Comparing the pair...</Loading>}
+      {!loading && !data && !error && <Empty title="No pair selected">Pick a project above, or select two photos in the Evidence library.</Empty>}
 
-      {!loading && compareData && (
-        <div className="space-y-8">
-          {(!compareData.sameProject ||
-            compareData.before.verificationStatus === 'FLAGGED' ||
-            compareData.after.verificationStatus === 'FLAGGED') && (
-            <div className="rounded-xl border border-[var(--color-accent-orange)]/40 bg-[var(--color-accent-orange)]/10 p-4 text-sm text-[var(--color-accent-orange)]">
-              ⚠ Treat this comparison with caution:
-              {!compareData.sameProject && ' these two assets belong to different projects.'}
-              {(compareData.before.verificationStatus === 'FLAGGED' || compareData.after.verificationStatus === 'FLAGGED') &&
-                ' at least one asset is flagged by verification and may not show what it claims.'}
-            </div>
-          )}
+      {!loading && data && c && (
+        <>
+          {/* Verdict */}
+          <section className={`card mb-8 border-l-8 p-7 ${c.comparability.level === 'comparable' ? 'border-l-brand' : 'border-l-brand-dark bg-tint'}`}>
+            <p className="eyebrow">{levelLabel}</p>
+            <p className="mt-2 text-3xl font-bold leading-snug">{c.comparability.headline}</p>
+          </section>
 
-          {/* AI-Described Change Summary Card */}
-          <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-lg space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] pb-4">
-              <div>
-                <span className="text-xs uppercase text-[var(--color-text-muted)] tracking-wider">Project Scope</span>
-                <h2 className="text-xl font-bold text-[var(--color-text)]">
-                  {compareData.before.projectName}
-                </h2>
-                <p className="text-xs text-[var(--color-text-muted)]">📍 {compareData.before.location}</p>
+          {/* Key facts */}
+          <div className="mb-10 grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+            <Tile label="Time apart">
+              <p className="numeral text-4xl text-brand">{c.time.basis === 'capture-dates' ? c.time.label : 'Unknown'}</p>
+              <p className="mt-2 text-lg text-muted">{c.time.basis === 'capture-dates' ? `${c.time.beforeDate} to ${c.time.afterDate}` : 'A capture date is missing'}</p>
+            </Tile>
+            <Tile label="Framing">
+              <p className="text-2xl font-bold">{tier}</p>
+              {c.scene.distance !== null && <p className="mt-2 text-lg text-muted">Fingerprint distance {c.scene.distance} of {c.scene.bits}</p>}
+            </Tile>
+            <Tile label="Description overlap">
+              <ul className="space-y-1 text-xl">
+                {([['Themes', c.overlap.themes], ['Objects', c.overlap.objects], ['Tags', c.overlap.tags]] as const).map(([k, v]) => (
+                  <li key={k} className="flex justify-between"><span className="text-muted">{k}</span><strong>{v === null ? 'n/a' : `${v}%`}</strong></li>
+                ))}
+              </ul>
+            </Tile>
+            <Tile label="Verification">
+              <div className="space-y-2 text-lg">
+                <div className="flex items-center justify-between gap-3"><span className="text-muted">Before</span><StatusBadge status={data.before.verificationStatus} /></div>
+                <div className="flex items-center justify-between gap-3"><span className="text-muted">After</span><StatusBadge status={data.after.verificationStatus} /></div>
               </div>
-
-              <div className="flex items-center gap-2 rounded-full border border-[var(--color-accent-yellow)]/30 bg-[var(--color-accent-yellow)]/10 px-3.5 py-1.5 text-xs font-semibold text-[var(--color-accent-yellow)]">
-                ⏱️ {compareData.comparison.timeSpanLabel}
-              </div>
-            </div>
-
-            {/* AI Change Narrative */}
-            <div className="space-y-2 pt-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--color-accent-cyan)]">
-                👁️ What changed
-              </h3>
-              <p className="text-sm leading-relaxed text-[var(--color-text)]">{compareData.comparison.narrative}</p>
-              <p className="text-[11px] text-[var(--color-text-muted)]">Method: {compareData.comparison.method}</p>
-            </div>
-
-            {(compareData.comparison.emergedThemes.length > 0 || compareData.comparison.fadedThemes.length > 0) && (
-              <div className="flex flex-wrap gap-4 border-t border-[var(--color-border)] pt-4 text-xs">
-                {compareData.comparison.emergedThemes.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold text-[var(--color-accent-green)]">New themes:</span>
-                    {compareData.comparison.emergedThemes.map((t) => (
-                      <span key={t} className="rounded border border-[var(--color-accent-green)]/30 bg-[var(--color-accent-green)]/15 px-2 py-0.5 font-medium text-[var(--color-accent-green)]">{t}</span>
-                    ))}
-                  </div>
-                )}
-                {compareData.comparison.fadedThemes.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold text-[var(--color-accent-orange)]">No longer shown:</span>
-                    {compareData.comparison.fadedThemes.map((t) => (
-                      <span key={t} className="rounded border border-[var(--color-accent-orange)]/30 bg-[var(--color-accent-orange)]/15 px-2 py-0.5 font-medium text-[var(--color-accent-orange)]">{t}</span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Tag Diff Chips */}
-            {(compareData.comparison.newTags.length > 0 || compareData.comparison.removedTags.length > 0) && (
-              <div className="border-t border-[var(--color-border)] pt-4 flex flex-wrap gap-4 text-xs">
-                {compareData.comparison.newTags.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-[var(--color-accent-green)]">+ New Visual Elements:</span>
-                    <div className="flex flex-wrap gap-1">
-                      {compareData.comparison.newTags.map((tag, i) => (
-                        <span key={i} className="rounded bg-[var(--color-accent-green)]/15 text-[var(--color-accent-green)] border border-[var(--color-accent-green)]/30 px-2 py-0.5 font-medium">
-                          +{tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {compareData.comparison.removedTags.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-[var(--color-accent-orange)]">- Prior Elements:</span>
-                    <div className="flex flex-wrap gap-1">
-                      {compareData.comparison.removedTags.map((tag, i) => (
-                        <span key={i} className="rounded bg-[var(--color-accent-orange)]/15 text-[var(--color-accent-orange)] border border-[var(--color-accent-orange)]/30 px-2 py-0.5 font-medium">
-                          -{tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+            </Tile>
           </div>
 
-          {/* Visual Pair Grid (Before vs After) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Before Asset Card */}
-            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden flex flex-col justify-between">
-              <div>
-                <div className="border-b border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-3 flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-[var(--color-accent-orange)]">
-                    ⏪ Baseline (Before)
-                  </span>
-                  <span className="flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
-                    <StatusBadge status={compareData.before.verificationStatus} />
-                    {new Date(compareData.before.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
-
-                <div className="aspect-video w-full overflow-hidden bg-black/40">
-                  <img
-                    src={compareData.before.cloudinaryUrl}
-                    alt="Baseline Evidence"
-                    className="h-full w-full object-cover"
-                  />
-                </div>
-
-                <div className="p-4 space-y-2">
-                  <p className="text-xs font-medium text-[var(--color-text)]">
-                    Activity: <span className="text-[var(--color-text-muted)]">{compareData.before.observation?.activity ?? 'Unclassified'}</span>
-                  </p>
-                  {compareData.before.observation?.caption && (
-                    <p className="text-xs text-[var(--color-text-muted)] italic">
-                      "{compareData.before.observation.caption}"
-                    </p>
-                  )}
-                  {compareData.before.observation?.tags && (
-                    <div className="flex flex-wrap gap-1 pt-1">
-                      {compareData.before.observation.tags.map((t, i) => (
-                        <span key={i} className="rounded bg-[var(--color-bg)] border border-[var(--color-border)] px-2 py-0.5 text-[10px] text-[var(--color-text-muted)]">
-                          #{t}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="border-t border-[var(--color-border)] px-4 py-2 text-right">
-                <a href={compareData.before.cloudinaryUrl} target="_blank" rel="noreferrer" className="text-xs text-[var(--color-accent-cyan)] hover:underline">
-                  View Source Asset ↗
-                </a>
-                <p className="mt-1 break-all text-right font-mono text-[10px] text-[var(--color-text-muted)]">
-                  {compareData.before.cloudinaryPublicId} • v{compareData.before.cloudinaryVersion}
-                </p>
+          {/* Viewer */}
+          <section className="card mb-10 p-7">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+              <h2 className="text-3xl font-bold">{data.before.projectName === data.after.projectName ? data.before.projectName : 'Compare'}</h2>
+              <div className="flex" role="group" aria-label="View mode">
+                {([['slider', 'Slider'], ['side', 'Side by side']] as const).map(([k, label]) => (
+                  <button
+                    key={k}
+                    onClick={() => setMode(k)}
+                    aria-pressed={mode === k}
+                    className={`cursor-pointer border-2 border-brand px-5 py-2.5 text-lg font-bold ${mode === k ? 'bg-brand text-white' : 'bg-white text-brand hover:bg-tint-2'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
+            {mode === 'slider' ? <RevealSlider before={data.before} after={data.after} /> : <SideBySide before={data.before} after={data.after} />}
+          </section>
 
-            {/* After Asset Card */}
-            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden flex flex-col justify-between">
-              <div>
-                <div className="border-b border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-3 flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-[var(--color-accent-green)]">
-                    ⏩ Follow-Up (After)
-                  </span>
-                  <span className="flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
-                    <StatusBadge status={compareData.after.verificationStatus} />
-                    {new Date(compareData.after.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
-
-                <div className="aspect-video w-full overflow-hidden bg-black/40">
-                  <img
-                    src={compareData.after.cloudinaryUrl}
-                    alt="Follow-Up Evidence"
-                    className="h-full w-full object-cover"
-                  />
-                </div>
-
-                <div className="p-4 space-y-2">
-                  <p className="text-xs font-medium text-[var(--color-text)]">
-                    Activity: <span className="text-[var(--color-accent-green)]">{compareData.after.observation?.activity ?? 'Unclassified'}</span>
-                  </p>
-                  {compareData.after.observation?.caption && (
-                    <p className="text-xs text-[var(--color-text-muted)] italic">
-                      "{compareData.after.observation.caption}"
-                    </p>
-                  )}
-                  {compareData.after.observation?.tags && (
-                    <div className="flex flex-wrap gap-1 pt-1">
-                      {compareData.after.observation.tags.map((t, i) => (
-                        <span key={i} className="rounded bg-[var(--color-bg)] border border-[var(--color-border)] px-2 py-0.5 text-[10px] text-[var(--color-text-muted)]">
-                          #{t}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="border-t border-[var(--color-border)] px-4 py-2 text-right">
-                <a href={compareData.after.cloudinaryUrl} target="_blank" rel="noreferrer" className="text-xs text-[var(--color-accent-cyan)] hover:underline">
-                  View Source Asset ↗
-                </a>
-                <p className="mt-1 break-all text-right font-mono text-[10px] text-[var(--color-text-muted)]">
-                  {compareData.after.cloudinaryPublicId} • v{compareData.after.cloudinaryVersion}
-                </p>
-              </div>
-            </div>
+          {/* Insights as separate cards */}
+          <div className="mb-10 grid gap-6 xl:grid-cols-2">
+            <InsightCard title="Same place?">
+              <p>{c.scene.text}</p>
+            </InsightCard>
+            <InsightCard title="Activity">
+              <p>{c.activity.text}</p>
+            </InsightCard>
+            <InsightCard title="Themes">
+              <Chips title="In both images" items={c.themes.shared} />
+              <Chips title="Only in the after image" items={c.themes.onlyAfter} />
+              <Chips title="Only in the before image" items={c.themes.onlyBefore} />
+              {c.themes.shared.length + c.themes.onlyAfter.length + c.themes.onlyBefore.length === 0 && <p className="text-muted">No recognised theme was detected in either image.</p>}
+            </InsightCard>
+            <InsightCard title="Objects named">
+              <Chips title="In both images" items={c.objects.shared} />
+              <Chips title="Only in the after image" items={c.objects.onlyAfter} />
+              <Chips title="Only in the before image" items={c.objects.onlyBefore} />
+              {c.objects.shared.length + c.objects.onlyAfter.length + c.objects.onlyBefore.length === 0 && <p className="text-muted">No objects were named.</p>}
+            </InsightCard>
           </div>
-        </div>
+
+          <details className="card mb-12 p-7">
+            <summary className="cursor-pointer text-2xl font-bold text-brand-dark">Read with care ({c.caveats.length})</summary>
+            <ul className="mt-5 list-disc space-y-3 pl-7 text-xl leading-relaxed text-muted">
+              {c.caveats.map((t) => <li key={t}>{t}</li>)}
+            </ul>
+            <p className="mt-5 text-lg text-muted">Method: {c.method}</p>
+          </details>
+
+          {/* Records */}
+          <div className="grid gap-6 xl:grid-cols-2">
+            <Record label="Before" side={data.before} />
+            <Record label="After" side={data.after} />
+          </div>
+        </>
       )}
     </div>
   )

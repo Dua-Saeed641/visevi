@@ -36,22 +36,31 @@ src/
 ├── lib/mongo.ts          MongoDB client singleton + index setup
 ├── lib/models.ts         documented TypeScript shapes for the 3 collections
 ├── lib/cloudinary.ts      upload + pre-processing pass + AI Vision analysis
+├── lib/lexicon.ts        concept lexicon shared by verification/indicators/search
+├── lib/verify.ts         the four verification checks
+├── lib/phash.ts          64-bit perceptual hash (sharp)
+├── lib/indicators.ts     SDG lookup table + evidence score
+├── lib/narrative.ts      before/after change description
+├── lib/semantic.ts       ranked concept-aware search
 ├── routes/health.ts      GET /api/health
-└── routes/assets.ts      GET /api/assets, POST /api/assets/upload
+├── routes/assets.ts      assets: list/search, detail, upload, re-verify
+└── routes/reports.ts     compare, project report, overview, graph
 ```
 
 ## Endpoints (current)
 
 - `GET /api/health` — liveness check
-- `GET /api/assets` — list uploaded assets with resolved project/location
-  names and their AI observation (via `$lookup` aggregation)
-- `POST /api/assets/upload` — multipart form (`file`, `project`, `location`);
-  uploads to Cloudinary, runs AI Vision analysis on images, upserts the
-  Project/Location, persists the Asset (with the observation if analysis
-  succeeded)
-
-Verification checks and indicator mapping are not wired yet — see
-[../MILESTONES.md](../MILESTONES.md) (M5, M6).
+- `GET /api/assets?q=&project=&location=&status=` — list/search; with `q`,
+  results are ranked and carry `match` (score + concepts the query was
+  understood as)
+- `GET /api/assets/:id` — full record incl. verification checks and
+  transformation history
+- `POST /api/assets/upload` — multipart (`file`, `project`, `location`,
+  optional `stage`, `capturedAt`); uploads, analyses, hashes, verifies
+- `POST /api/assets/:id/reverify`, `POST /api/assets/reverify-all`
+- `GET /api/reports/compare?beforeId=&afterId=`
+- `GET /api/reports/project/:id` — report incl. indicators, suggested pairs
+- `GET /api/reports/projects`, `/overview`, `/graph`, `/indicator-table`
 
 ## Notes on the MongoDB setup
 

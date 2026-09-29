@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react'
-import { api, type Asset } from '../lib/api'
+import { api, thumbUrl, type Asset } from '../lib/api'
 import { StatusBadge } from './StatusBadge'
 
+const resultLabel = { pass: 'Passed', fail: 'Failed', skipped: 'Not enough data' } as const
 const resultStyle = {
-  pass: { icon: '✓', color: 'text-[var(--color-accent-green)]' },
-  fail: { icon: '✕', color: 'text-[var(--color-accent-red)]' },
-  skipped: { icon: '–', color: 'text-[var(--color-text-muted)]' },
+  pass: 'bg-brand text-white border-brand',
+  fail: 'bg-white text-brand-dark border-brand-dark',
+  skipped: 'bg-tint-2 text-brand border-brand/40',
 } as const
 
 /**
- * Full record for one asset: why it has its verification status (every
- * check, with the reason) and its Cloudinary provenance (public ID, version,
+ * Full record for one asset: why it has its verification status (every check
+ * with its reason) and its Cloudinary provenance (public ID, version,
  * transformation history) — the traceability requirement made visible.
  */
 export function AssetDetail({
@@ -48,142 +49,110 @@ export function AssetDetail({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[60] overflow-y-auto bg-ink/70 p-4 sm:p-8"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label="Asset details"
     >
-      <div
-        className="my-8 w-full max-w-3xl rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-4 border-b border-[var(--color-border)] p-5">
+      <div className="mx-auto max-w-6xl border-2 border-ink bg-white" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-6 border-b-2 border-ink px-8 py-6">
           <div>
-            <h2 className="text-lg font-bold">{asset.projectName}</h2>
-            <p className="text-xs text-[var(--color-text-muted)]">
-              📍 {asset.location}
-              {asset.stage ? ` • Stage: ${asset.stage}` : ''}
+            <p className="eyebrow">Evidence record</p>
+            <h2 className="mt-2 text-3xl font-bold">{asset.projectName}</h2>
+            <p className="mt-1 text-lg text-muted">
+              {asset.location}
+              {asset.stage ? ` · ${asset.stage}` : ''}
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <StatusBadge status={status} />
-            <button
-              onClick={onClose}
-              className="cursor-pointer text-[var(--color-text-muted)] hover:text-white"
-              aria-label="Close"
-            >
-              ✕
-            </button>
+          <div className="flex items-center gap-5">
+            <StatusBadge status={status} className="text-base" />
+            <button onClick={onClose} className="btn btn-outline">Close</button>
           </div>
         </div>
 
-        <div className="grid gap-6 p-5 md:grid-cols-2">
-          <div className="space-y-3">
+        <div className="grid gap-10 p-8 lg:grid-cols-2">
+          <div className="space-y-5">
             {asset.resourceType === 'video' ? (
-              <video src={asset.cloudinaryUrl} controls className="w-full rounded-lg bg-black/40" />
+              <video src={asset.cloudinaryUrl} controls className="w-full bg-tint" />
             ) : (
-              <img src={asset.cloudinaryUrl} alt={asset.projectName} className="w-full rounded-lg bg-black/40" />
+              <img src={thumbUrl(asset, 1200)} alt={asset.projectName} className="w-full bg-tint" />
             )}
-            {obs?.caption && <p className="text-xs italic text-[var(--color-text-muted)]">"{obs.caption}"</p>}
+            {obs?.caption && <p className="text-xl leading-relaxed">{obs.caption}</p>}
             {obs && (
-              <div className="space-y-1.5 text-xs">
+              <dl className="space-y-3 text-lg">
                 {obs.activity && (
-                  <p>
-                    <span className="text-[var(--color-text-muted)]">Activity: </span>
-                    <span className="font-medium text-[var(--color-accent-yellow)]">{obs.activity}</span>
-                  </p>
+                  <div>
+                    <dt className="text-sm font-bold uppercase tracking-wider text-muted">Activity</dt>
+                    <dd className="font-bold text-brand">{obs.activity}</dd>
+                  </div>
                 )}
                 {obs.objects.length > 0 && (
-                  <p>
-                    <span className="text-[var(--color-text-muted)]">Objects: </span>
-                    {obs.objects.join(', ')}
-                  </p>
+                  <div>
+                    <dt className="text-sm font-bold uppercase tracking-wider text-muted">Objects</dt>
+                    <dd>{obs.objects.join(', ')}</dd>
+                  </div>
                 )}
-                <div className="flex flex-wrap gap-1">
-                  {obs.tags.map((t) => (
-                    <span key={t} className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-1.5 py-0.5 text-[10px] text-[var(--color-text-muted)]">
-                      #{t}
-                    </span>
-                  ))}
-                </div>
-                <p className="text-[10px] text-[var(--color-text-muted)]">Source: {obs.source}</p>
-              </div>
+                {obs.tags.length > 0 && (
+                  <div>
+                    <dt className="text-sm font-bold uppercase tracking-wider text-muted">Tags</dt>
+                    <dd className="text-muted">{obs.tags.join(' / ')}</dd>
+                  </div>
+                )}
+                <p className="text-sm text-muted">Analysis source: {obs.source}</p>
+              </dl>
             )}
           </div>
 
-          <div className="space-y-5">
+          <div className="space-y-10">
             <section>
-              <div className="mb-2 flex items-center justify-between">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--color-accent-cyan)]">
-                  Verification checks
-                </h3>
-                <button
-                  onClick={reverify}
-                  disabled={busy}
-                  className="cursor-pointer rounded border border-[var(--color-border)] px-2 py-1 text-[10px] text-[var(--color-text-muted)] hover:text-white disabled:opacity-50"
-                >
-                  {busy ? 'Re-checking…' : 'Re-run checks'}
+              <div className="mb-4 flex items-center justify-between border-b border-line pb-3">
+                <h3 className="text-2xl font-bold">Verification checks</h3>
+                <button onClick={reverify} disabled={busy} className="btn btn-outline">
+                  {busy ? 'Re-checking...' : 'Re-run checks'}
                 </button>
               </div>
               {asset.verification?.checks.length ? (
-                <ul className="space-y-2">
+                <ul className="space-y-5">
                   {asset.verification.checks.map((c) => (
-                    <li key={c.id} className="text-xs">
-                      <span className={`mr-1.5 font-bold ${resultStyle[c.result].color}`}>{resultStyle[c.result].icon}</span>
-                      <span className="font-medium">{c.label}</span>
-                      <p className="ml-4 text-[11px] text-[var(--color-text-muted)]">{c.detail}</p>
+                    <li key={c.id}>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span className={`border-2 px-2 py-0.5 text-sm font-bold ${resultStyle[c.result]}`}>{resultLabel[c.result]}</span>
+                        <span className="text-lg font-bold">{c.label}</span>
+                      </div>
+                      <p className="mt-1 text-base leading-relaxed text-muted">{c.detail}</p>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-xs text-[var(--color-text-muted)]">No checks recorded yet.</p>
+                <p className="text-lg text-muted">No checks recorded yet.</p>
               )}
-              {error && <p className="mt-2 text-xs text-[var(--color-accent-red)]">{error}</p>}
+              {error && <p className="mt-3 text-lg text-brand-dark">{error}</p>}
             </section>
 
             <section>
-              <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-[var(--color-accent-cyan)]">
-                Traceability
-              </h3>
-              <dl className="space-y-1 text-[11px]">
-                <div>
-                  <dt className="inline text-[var(--color-text-muted)]">Cloudinary public ID: </dt>
-                  <dd className="inline break-all font-mono">{asset.cloudinaryPublicId}</dd>
-                </div>
-                <div>
-                  <dt className="inline text-[var(--color-text-muted)]">Version: </dt>
-                  <dd className="inline font-mono">{asset.cloudinaryVersion ?? '—'}</dd>
-                </div>
-                <div>
-                  <dt className="inline text-[var(--color-text-muted)]">Claimed capture date: </dt>
-                  <dd className="inline">{asset.capturedAt ? new Date(asset.capturedAt).toLocaleDateString() : 'not provided'}</dd>
-                </div>
-                <div>
-                  <dt className="inline text-[var(--color-text-muted)]">Capture date in file (EXIF): </dt>
-                  <dd className="inline">{asset.exifCapturedAt ? new Date(asset.exifCapturedAt).toLocaleDateString() : 'none'}</dd>
-                </div>
+              <h3 className="mb-4 border-b border-line pb-3 text-2xl font-bold">Traceability</h3>
+              <dl className="space-y-2 text-base">
+                <div><dt className="inline text-muted">Cloudinary public ID: </dt><dd className="inline break-all font-mono">{asset.cloudinaryPublicId}</dd></div>
+                <div><dt className="inline text-muted">Version: </dt><dd className="inline font-mono">{asset.cloudinaryVersion ?? 'n/a'}</dd></div>
+                <div><dt className="inline text-muted">Claimed capture date: </dt><dd className="inline">{asset.capturedAt ? new Date(asset.capturedAt).toLocaleDateString() : 'not provided'}</dd></div>
+                <div><dt className="inline text-muted">Date embedded in file (EXIF): </dt><dd className="inline">{asset.exifCapturedAt ? new Date(asset.exifCapturedAt).toLocaleDateString() : 'none'}</dd></div>
               </dl>
               {asset.transformations && asset.transformations.length > 0 && (
-                <div className="mt-2">
-                  <p className="text-[11px] text-[var(--color-text-muted)]">Pre-processing applied on upload:</p>
-                  <ul className="mt-1 space-y-1">
+                <div className="mt-5">
+                  <p className="text-base font-bold">Pre-processing applied on upload</p>
+                  <ul className="mt-2 space-y-2">
                     {asset.transformations.map((t) => (
-                      <li key={t.step} className="text-[11px]">
-                        <code className="rounded bg-[var(--color-bg)] px-1 py-0.5 text-[var(--color-accent-yellow)]">{t.cloudinary}</code>{' '}
-                        <span className="text-[var(--color-text-muted)]">{t.purpose}</span>
+                      <li key={t.step} className="text-base">
+                        <code className="bg-tint-2 px-1.5 py-0.5 font-mono text-brand-dark">{t.cloudinary}</code>{' '}
+                        <span className="text-muted">{t.purpose}</span>
                       </li>
                     ))}
                   </ul>
                 </div>
               )}
-              <a
-                href={asset.cloudinaryUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-3 inline-block text-[11px] text-[var(--color-accent-cyan)] hover:underline"
-              >
-                Open source asset on Cloudinary ↗
+              <a href={asset.cloudinaryUrl} target="_blank" rel="noreferrer" className="mt-5 inline-block text-lg font-bold text-brand underline underline-offset-4 hover:text-brand-dark">
+                Open source asset on Cloudinary
               </a>
             </section>
           </div>

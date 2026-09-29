@@ -25,6 +25,27 @@ export interface LocationDocument {
 
 export type VerificationStatus = 'UNVERIFIED' | 'VERIFIED' | 'FLAGGED'
 
+/** One explainable check contributing to an asset's verification status. */
+export interface VerificationCheck {
+  id: 'content-claim' | 'project-theme' | 'duplicate' | 'capture-date'
+  label: string
+  /** skipped = not enough data to judge; never counted as a pass. */
+  result: 'pass' | 'fail' | 'skipped'
+  detail: string
+}
+
+export interface VerificationResult {
+  checks: VerificationCheck[]
+  evaluatedAt: Date
+}
+
+/** A Cloudinary transformation applied to the source media, for traceability. */
+export interface TransformationRecord {
+  step: string
+  cloudinary: string
+  purpose: string
+}
+
 /**
  * AI-derived structured observation for an asset. Every field is nullable
  * on purpose: if Cloudinary's analysis can't determine something (or hasn't
@@ -60,7 +81,10 @@ export interface AssetDocument {
   projectId: ObjectId
   locationId: ObjectId | null
 
+  /** Capture date claimed by the uploader. */
   capturedAt: Date | null
+  /** Capture date read from the file's own EXIF (via Cloudinary), if any. */
+  exifCapturedAt?: Date | null
   stage: string | null
 
   // Null until Cloudinary AI analysis has actually run (M2).
@@ -68,7 +92,13 @@ export interface AssetDocument {
 
   verificationStatus: VerificationStatus
   verificationNote: string | null
+  verification?: VerificationResult | null
   perceptualHash: string | null
+  /** Incoming transformations applied at upload — transformation history.
+   * They are baked into the stored asset (Cloudinary "incoming
+   * transformation"); the perceptual hash is taken from the raw bytes
+   * before this step. */
+  transformations?: TransformationRecord[]
 
   createdAt: Date
   updatedAt: Date

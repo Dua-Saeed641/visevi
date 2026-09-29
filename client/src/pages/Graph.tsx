@@ -1,23 +1,33 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AssetDetail } from '../components/AssetDetail'
+import { Empty, Loading, Notice, PageHeader } from '../components/ui'
 import { api, thumbUrl, type Asset, type GraphData, type GraphNode } from '../lib/api'
 
 const W = 1400
 const H = 860
 
 const kindColor: Record<GraphNode['kind'], string> = {
-  project: 'var(--color-accent-cyan)',
-  location: 'var(--color-accent-blue)',
-  asset: 'var(--color-text-muted)',
-  theme: 'var(--color-accent-yellow)',
-  indicator: 'var(--color-accent-pink)',
+  project: '#8f0b14',
+  location: '#d6111e',
+  asset: '#7a5257',
+  theme: '#f6b6ba',
+  indicator: '#2a0b0e',
 }
-const kindRadius: Record<GraphNode['kind'], number> = { project: 16, location: 11, asset: 26, theme: 10, indicator: 12 }
-const statusColor: Record<string, string> = {
-  VERIFIED: 'var(--color-accent-green)',
-  FLAGGED: 'var(--color-accent-red)',
-  UNVERIFIED: 'var(--color-text-muted)',
+const kindLabel: Record<GraphNode['kind'], string> = {
+  project: 'Project',
+  location: 'Location',
+  asset: 'Evidence photo',
+  theme: 'Detected theme',
+  indicator: 'SDG indicator',
 }
+const kindRadius: Record<GraphNode['kind'], number> = { project: 18, location: 12, asset: 28, theme: 11, indicator: 13 }
+// Status ring: solid red / light red / dashed dark — distinguishable without colour.
+const ringOf = (status?: string) =>
+  status === 'VERIFIED'
+    ? { stroke: '#d6111e', dash: undefined, width: 4 }
+    : status === 'FLAGGED'
+      ? { stroke: '#8f0b14', dash: '7 5', width: 4 }
+      : { stroke: '#f6b6ba', dash: undefined, width: 4 }
 
 interface Placed extends GraphNode {
   x: number
@@ -91,7 +101,7 @@ function ZoomButton({ label, title, onClick }: { label: string; title: string; o
       title={title}
       aria-label={title}
       onClick={onClick}
-      className="h-8 w-8 cursor-pointer rounded-md border border-[var(--color-border)] bg-[var(--color-bg)]/90 text-sm text-[var(--color-text-muted)] hover:text-white"
+      className="min-w-11 cursor-pointer border-2 border-ink bg-white px-3 py-2 text-lg font-bold text-ink hover:bg-brand hover:text-white"
     >
       {label}
     </button>
@@ -116,6 +126,7 @@ export function Graph() {
   const svgRef = useRef<SVGSVGElement>(null)
   const drag = useRef<{ px: number; py: number; moved: number } | null>(null)
   const [grabbing, setGrabbing] = useState(false)
+  const wasDrag = useRef(false) // true if the last pointer gesture moved: suppresses the click that follows a pan
 
   useEffect(() => {
     api.getGraph().then(setData).catch((e: unknown) => setError(e instanceof Error ? e.message : 'Failed to load graph'))
@@ -202,8 +213,8 @@ export function Graph() {
 
   const onPointerDown = (e: React.PointerEvent) => {
     drag.current = { px: e.clientX, py: e.clientY, moved: 0 }
+    wasDrag.current = false
     setGrabbing(true)
-    ;(e.currentTarget as Element).setPointerCapture?.(e.pointerId)
   }
   const onPointerMove = (e: React.PointerEvent) => {
     const d = drag.current
@@ -219,9 +230,9 @@ export function Graph() {
     setView(v)
   }
   const onPointerUp = () => {
+    if (drag.current) wasDrag.current = drag.current.moved >= 5
+    drag.current = null // gesture over: later mouse moves must not pan
     setGrabbing(false)
-    // keep `moved` readable for the click that follows a drag; cleared on next pointerdown
-    if (drag.current) drag.current = { ...drag.current, px: 0, py: 0 }
   }
 
   const lit = useMemo(() => {
@@ -244,7 +255,7 @@ export function Graph() {
   }, [hover, data, matches])
 
   const openAsset = (node: Placed) => {
-    if (node.kind === 'asset' && (drag.current?.moved ?? 0) < 5) {
+    if (node.kind === 'asset' && !wasDrag.current) {
       api.getAsset(node.id.slice(2)).then(setDetail).catch(() => {})
     }
   }
@@ -261,58 +272,40 @@ export function Graph() {
   const onReset = () => flyTo(FULL)
 
   return (
-    <div className="space-y-6">
-      <div>
-        <div className="font-mono text-xs uppercase tracking-wider text-[var(--color-accent-cyan)]">Evidence Graph</div>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight">How the evidence connects</h1>
-        <p className="mt-1 max-w-2xl text-sm text-[var(--color-text-muted)]">
-          Each photo is a node, ringed by its verification status and linked to its location, the themes detected in
-          it, and the SDG indicators it supports. Search to zoom straight to matching evidence; scroll to zoom, drag to
-          pan, click a photo for its full record.
-        </p>
-      </div>
+    <div>
+      <PageHeader eyebrow="Evidence graph" title="How the evidence connects">
+        Each photo is a node, outlined by its status. Search to fly to matches, scroll to zoom, drag to pan, click for the record.
+      </PageHeader>
 
-      {error && (
-        <div className="rounded-xl border border-[var(--color-accent-red)]/30 bg-[var(--color-accent-red)]/10 p-5 text-sm text-[var(--color-accent-red)]">
-          {error}
-        </div>
-      )}
-      {!data && !error && <div className="py-16 text-center text-sm text-[var(--color-text-muted)]">Building graph…</div>}
-      {data && data.nodes.length === 0 && (
-        <div className="rounded-xl border border-dashed border-[var(--color-border)] p-12 text-center text-sm text-[var(--color-text-muted)]">
-          Nothing to show yet — upload evidence and the graph builds itself from it.
-        </div>
-      )}
+      {error && <Notice>{error}</Notice>}
+      {!data && !error && <Loading>Building the graph...</Loading>}
+      {data && data.nodes.length === 0 && <Empty title="Nothing to show yet">Upload evidence and the graph builds itself from it.</Empty>}
 
       {data && data.nodes.length > 0 && (
         <>
-          <div className="flex flex-wrap items-center gap-3">
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder='Search the graph, e.g. "solar panels on a roof"'
-              className="min-w-[260px] flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-2 text-sm placeholder-[var(--color-text-muted)] focus:border-[var(--color-accent-cyan)] focus:outline-none"
-            />
-            {query && (
-              <button
-                onClick={() => setQuery('')}
-                className="cursor-pointer rounded-lg border border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-text-muted)] hover:text-white"
-              >
-                Clear
-              </button>
-            )}
-            <span className="text-xs text-[var(--color-text-muted)]" aria-live="polite">
+          <div className="mb-6 flex flex-wrap items-end gap-4">
+            <label className="block min-w-[18rem] flex-1">
+              <span className="mb-2 block text-base font-bold">Search the graph</span>
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder='For example "glacier" or "forest clearing"'
+                className="input"
+              />
+            </label>
+            {query && <button onClick={() => setQuery('')} className="btn btn-outline">Clear</button>}
+            <p className="basis-full text-lg text-muted lg:basis-auto" aria-live="polite">
               {searching
-                ? 'Searching…'
+                ? 'Searching...'
                 : matches
                   ? matches.size === 0
                     ? 'No matching evidence'
-                    : `${matches.size} match${matches.size === 1 ? '' : 'es'}${understood.length ? ' • understood as ' + understood.join(', ') : ''}`
+                    : `${matches.size} match${matches.size === 1 ? '' : 'es'}${understood.length ? ', understood as ' + understood.join(', ') : ''}`
                   : ''}
-            </span>
+            </p>
           </div>
 
-          <div className="relative overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]">
+          <div className="relative overflow-hidden border-2 border-ink bg-white">
             <svg
               ref={svgRef}
               viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
@@ -328,7 +321,7 @@ export function Graph() {
               <defs>
                 {placed.filter((p) => p.kind === 'asset').map((p) => (
                   <clipPath key={p.id} id={`clip-${p.id}`}>
-                    <rect x={p.x - kindRadius.asset} y={p.y - kindRadius.asset} width={kindRadius.asset * 2} height={kindRadius.asset * 2} rx={9} />
+                    <rect x={p.x - kindRadius.asset} y={p.y - kindRadius.asset} width={kindRadius.asset * 2} height={kindRadius.asset * 2} />
                   </clipPath>
                 ))}
               </defs>
@@ -340,16 +333,15 @@ export function Graph() {
                 const on = !lit || (lit.has(e.source) && lit.has(e.target))
                 const mx = (a.x + b.x) / 2 - (b.y - a.y) * 0.12
                 const my = (a.y + b.y) / 2 + (b.x - a.x) * 0.12
-                const stroke =
-                  e.kind === 'supports' ? 'var(--color-accent-pink)' : e.kind === 'shows' ? 'var(--color-accent-yellow)' : 'var(--color-accent-blue)'
+                const stroke = e.kind === 'supports' ? '#2a0b0e' : e.kind === 'shows' ? '#f6b6ba' : '#d6111e'
                 return (
                   <path
                     key={i}
                     d={`M${a.x} ${a.y}Q${mx} ${my} ${b.x} ${b.y}`}
                     fill="none"
                     stroke={stroke}
-                    strokeWidth={on && lit ? 1.6 : 0.9}
-                    opacity={on ? (lit ? 0.85 : 0.35) : 0.04}
+                    strokeWidth={on && lit ? 2.4 : 1.4}
+                    opacity={on ? (lit ? 0.9 : 0.5) : 0.06}
                   />
                 )
               })}
@@ -358,10 +350,11 @@ export function Graph() {
                 const r = kindRadius[p.kind]
                 const dim = lit && !lit.has(p.id)
                 const isMatch = matches?.has(p.id)
+                const ring = ringOf(p.status)
                 return (
                   <g
                     key={p.id}
-                    opacity={dim ? 0.1 : 1}
+                    opacity={dim ? 0.12 : 1}
                     style={{ transition: 'opacity 250ms' }}
                     onPointerEnter={() => setHover(p)}
                     onPointerLeave={() => setHover(null)}
@@ -370,26 +363,24 @@ export function Graph() {
                   >
                     {p.kind === 'asset' && p.url ? (
                       <>
-                        {isMatch && (
-                          <rect x={p.x - r - 5} y={p.y - r - 5} width={r * 2 + 10} height={r * 2 + 10} rx={13} fill="none" stroke="var(--color-accent-cyan)" strokeWidth={2} opacity={0.9} />
-                        )}
+                        {isMatch && <rect x={p.x - r - 8} y={p.y - r - 8} width={r * 2 + 16} height={r * 2 + 16} fill="none" stroke="#2a0b0e" strokeWidth={3} />}
                         <image
-                          href={thumbUrl({ cloudinaryUrl: p.url, resourceType: p.url.includes('/video/upload/') ? 'video' : 'image' })}
+                          href={thumbUrl({ cloudinaryUrl: p.url }, 120)}
                           x={p.x - r} y={p.y - r} width={r * 2} height={r * 2}
                           clipPath={`url(#clip-${p.id})`}
                           preserveAspectRatio="xMidYMid slice"
                         />
-                        <rect x={p.x - r} y={p.y - r} width={r * 2} height={r * 2} rx={9} fill="none" stroke={statusColor[p.status ?? 'UNVERIFIED']} strokeWidth={2.5} />
+                        <rect x={p.x - r} y={p.y - r} width={r * 2} height={r * 2} fill="none" stroke={ring.stroke} strokeWidth={ring.width} strokeDasharray={ring.dash} />
                         {(zoomed || isMatch) && p.label && (
-                          <text x={p.x} y={p.y + r + 14} textAnchor="middle" fontSize={11} fill="var(--color-text)">
-                            {p.label.length > 26 ? p.label.slice(0, 25) + '…' : p.label}
+                          <text x={p.x} y={p.y + r + 20} textAnchor="middle" fontSize={17} fontWeight="700" fill="#2a0b0e" stroke="#fff" strokeWidth={4} paintOrder="stroke">
+                            {p.label.length > 28 ? p.label.slice(0, 27) + '\u2026' : p.label}
                           </text>
                         )}
                       </>
                     ) : (
                       <>
-                        <circle cx={p.x} cy={p.y} r={r} fill={kindColor[p.kind]} opacity={0.9} />
-                        <text x={p.x} y={p.y + r + 13} textAnchor="middle" fontSize={p.kind === 'project' ? 14 : 11} fill="var(--color-text)">
+                        <circle cx={p.x} cy={p.y} r={r} fill={kindColor[p.kind]} stroke={p.kind === 'theme' ? '#8f0b14' : 'none'} strokeWidth={2} />
+                        <text x={p.x} y={p.y + r + 20} textAnchor="middle" fontSize={p.kind === 'project' ? 22 : 16} fontWeight={p.kind === 'project' ? 700 : 600} fill="#2a0b0e" stroke="#fff" strokeWidth={4} paintOrder="stroke">
                           {p.label}
                         </text>
                       </>
@@ -399,32 +390,31 @@ export function Graph() {
               })}
             </svg>
 
-            <div className="absolute right-3 top-3 flex flex-col gap-1">
+            <div className="absolute right-4 top-4 flex flex-col gap-2">
               <ZoomButton label="+" title="Zoom in" onClick={onZoomIn} />
-              <ZoomButton label="−" title="Zoom out" onClick={onZoomOut} />
-              <ZoomButton label="⤢" title="Reset view" onClick={onReset} />
+              <ZoomButton label="-" title="Zoom out" onClick={onZoomOut} />
+              <ZoomButton label="Reset" title="Reset view" onClick={onReset} />
             </div>
 
-            <div className="pointer-events-none absolute bottom-3 left-3 flex flex-wrap gap-3 rounded-lg bg-[var(--color-bg)]/80 px-3 py-2 text-[11px] text-[var(--color-text-muted)]">
+            <ul className="pointer-events-none absolute bottom-4 left-4 flex flex-wrap gap-x-5 gap-y-2 border-2 border-ink bg-white px-4 py-3 text-base">
               {(['project', 'location', 'theme', 'indicator'] as const).map((k) => (
-                <span key={k} className="flex items-center gap-1.5">
-                  <span className="inline-block h-2 w-2 rounded-full" style={{ background: kindColor[k] }} />
-                  {k}
-                </span>
+                <li key={k} className="flex items-center gap-2">
+                  <span className="inline-block h-3.5 w-3.5 rounded-full border-2 border-brand-dark" style={{ background: kindColor[k] }} />
+                  {kindLabel[k]}
+                </li>
               ))}
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block h-2.5 w-2.5 rounded-[3px] border-2" style={{ borderColor: statusColor.VERIFIED }} />verified
-                <span className="ml-2 inline-block h-2.5 w-2.5 rounded-[3px] border-2" style={{ borderColor: statusColor.FLAGGED }} />flagged
-              </span>
-            </div>
+              <li className="flex items-center gap-2"><span className="inline-block h-4 w-4 border-4 border-brand" />Verified</li>
+              <li className="flex items-center gap-2"><span className="inline-block h-4 w-4 border-4 border-dashed border-brand-dark" />Flagged</li>
+              <li className="flex items-center gap-2"><span className="inline-block h-4 w-4 border-4 border-tint-2" />Unverified</li>
+            </ul>
 
             {hover && (
-              <div className="pointer-events-none absolute left-4 top-4 max-w-xs rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)]/95 p-3 text-xs shadow-xl">
-                <p className="font-semibold text-[var(--color-text)]">{hover.label}</p>
-                <p className="uppercase tracking-wider text-[var(--color-text-muted)]">
-                  {hover.kind}{hover.status ? ` • ${hover.status}` : ''}
+              <div className="pointer-events-none absolute left-4 top-4 max-w-sm border-2 border-ink bg-white p-4 text-base shadow-lg">
+                <p className="text-lg font-bold">{hover.label}</p>
+                <p className="text-sm font-bold uppercase tracking-wider text-brand">
+                  {kindLabel[hover.kind]}{hover.status ? ` \u00b7 ${hover.status.toLowerCase()}` : ''}
                 </p>
-                {hover.meta && <p className="mt-1 text-[var(--color-text-muted)]">{hover.meta}</p>}
+                {hover.meta && <p className="mt-1 text-muted">{hover.meta}</p>}
               </div>
             )}
           </div>

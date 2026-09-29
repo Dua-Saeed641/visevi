@@ -26,6 +26,28 @@ export interface UploadResult {
   url: string
   version: string
   resourceType: string
+  /** Capture time from the file's own EXIF, if the file has one. */
+  exifCapturedAt: Date | null
+}
+
+/** Incoming transformation applied to every image on upload. Kept as data so
+ * the exact history can be stored on the asset (traceability). */
+export const IMAGE_PREPROCESSING = [
+  { step: 'auto-orient', cloudinary: 'a_auto', purpose: 'Straighten photos taken sideways/upside-down so AI analysis sees them upright' },
+  { step: 'auto-enhance', cloudinary: 'e_improve', purpose: 'Recover contrast/colour on dull or poorly lit field photos' },
+  { step: 'sharpen', cloudinary: 'e_sharpen:60', purpose: 'Counter mild motion blur / soft focus from phone cameras' },
+] as const
+
+function parseExifDate(meta: unknown): Date | null {
+  if (!meta || typeof meta !== 'object') return null
+  const m = meta as Record<string, unknown>
+  const raw = m.DateTimeOriginal ?? m.CreateDate ?? m.DateTimeDigitized
+  if (typeof raw !== 'string') return null
+  // EXIF format: "2026:03:14 09:26:53"
+  const match = /^(d{4}):(d{2}):(d{2})[ T](d{2}):(d{2}):(d{2})/.exec(raw)
+  if (!match) return null
+  const d = new Date(Date.UTC(+match[1], +match[2] - 1, +match[3], +match[4], +match[5], +match[6]))
+  return Number.isNaN(d.getTime()) ? null : d
 }
 
 /**
@@ -43,6 +65,7 @@ export function uploadBuffer(
       {
         folder: opts.folder,
         resource_type: opts.resourceType,
+        image_metadata: opts.resourceType === 'image',
         transformation:
           opts.resourceType === 'image'
             ? [{ angle: 'auto' }, { effect: 'improve' }, { effect: 'sharpen:60' }]
@@ -61,6 +84,7 @@ export function uploadBuffer(
           url: result.secure_url,
           version: String(result.version),
           resourceType: result.resource_type,
+          exifCapturedAt: parseExifDate(result.image_metadata),
         })
       },
     )
@@ -98,52 +122,49 @@ export class CloudinaryAnalysisError extends Error {
   }
 }
 
-const ANALYSIS_PROMPTS = [
+// One prompt per field: slow (~7s) because Cloudinary answers them serially,
+// so this is only the fallback if the combined prompt below isn't obeyed.
+const FIELD_PROMPTS = [
   'In a few words, what is the main activity or process taking place in this image? If none is clearly identifiable, say "unclear".',
   'List the distinct physical objects clearly visible in this image, as a comma-separated list.',
   'Suggest 3 to 6 short, lowercase, hyphenated tags that describe this image for a project-evidence search system, as a comma-separated list.',
   'Write a single, factual one-sentence caption describing exactly what is shown in this image.',
 ]
 
+// Measured against the live API: this single prompt takes ~2.4s where the four
+// FIELD_PROMPTS above take ~7s, with equivalent output.
+const COMBINED_PROMPT =
+  'Answer in exactly 4 lines, with no labels or numbering. ' +
+  'Line 1: the main activity or process in a few words (write "unclear" if none). ' +
+  'Line 2: the distinct physical objects clearly visible, comma-separated. ' +
+  'Line 3: 3 to 6 short, lowercase, hyphenated tags for a project-evidence search system, comma-separated. ' +
+  'Line 4: one factual sentence captioning exactly what is shown.'
+
 function splitList(value: string): string[] {
-  return value
+  const items = value
     .split(',')
     .map((s) => s.trim())
     .filter((s) => s.length > 0 && !/^(none|n\/a|unclear|unknown)$/i.test(s))
+  // The model often repeats an item once per instance ("pink flower" x3).
+  return [...new Map(items.map((s) => [s.toLowerCase(), s])).values()]
 }
 
-/**
- * Runs Cloudinary AI Vision analysis on an already-uploaded asset and maps
- * the response into VisEvi's structured observation shape. Throws
- * CloudinaryAnalysisError on any failure (add-on not enabled, auth error,
- * quota exhausted, etc.) — callers must not substitute a fake observation
- * on catch; see routes/assets.ts for how the failure is surfaced.
- */
-export async function analyzeAsset(source: {
-  assetId: string | null
-  url: string
-}): Promise<Observation> {
+const tidy = (s: string) => s.trim().replace(/[.\s]+$/, '')
+
+async function callAnalyze(source: { assetId: string | null; url: string }, prompts: string[]): Promise<string[]> {
   const { cloudName, apiKey, apiSecret } = env.cloudinary
   const auth = Buffer.from(`${apiKey}:${apiSecret}`).toString('base64')
 
-  const body = {
-    source: source.assetId ? { asset_id: source.assetId } : { uri: source.url },
-    prompts: ANALYSIS_PROMPTS,
-  }
-
   let res: Response
   try {
-    res = await fetch(
-      `https://api.cloudinary.com/v2/analysis/${cloudName}/analyze/ai_vision_general`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Basic ${auth}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      },
-    )
+    res = await fetch(`https://api.cloudinary.com/v2/analysis/${cloudName}/analyze/ai_vision_general`, {
+      method: 'POST',
+      headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source: source.assetId ? { asset_id: source.assetId } : { uri: source.url },
+        prompts,
+      }),
+    })
   } catch (err) {
     throw new CloudinaryAnalysisError('Network error calling Cloudinary Analyze API', err)
   }
@@ -161,21 +182,57 @@ export async function analyzeAsset(source: {
   }
 
   const responses = json?.data?.analysis?.responses
-  if (!responses || responses.length !== ANALYSIS_PROMPTS.length) {
+  if (!responses || responses.length !== prompts.length) {
     throw new CloudinaryAnalysisError(
       `Cloudinary AI Vision returned an unexpected response shape: ${JSON.stringify(json)}`,
     )
   }
+  return responses.map((r) => r.value?.trim() ?? '')
+}
 
-  const [activityRaw, objectsRaw, tagsRaw, captionRaw] = responses.map((r) => r.value?.trim() ?? '')
+/**
+ * Runs Cloudinary AI Vision analysis on an already-uploaded asset and maps
+ * the response into VisEvi's structured observation shape. Throws
+ * CloudinaryAnalysisError on any failure (add-on not enabled, auth error,
+ * quota exhausted, etc.) — callers must not substitute a fake observation
+ * on catch; see routes/assets.ts for how the failure is surfaced.
+ */
+export async function analyzeAsset(source: {
+  assetId: string | null
+  url: string
+}): Promise<Observation> {
+  let fields: string[] | null = null
+
+  // Fast path: one combined prompt, accepted only if it came back as the four
+  // expected non-empty lines. Anything else falls through to per-field prompts.
+  const [combined] = await callAnalyze(source, [COMBINED_PROMPT])
+  const parts = combined.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+  if (parts.length === 4) fields = parts
+
+  if (!fields) fields = await callAnalyze(source, FIELD_PROMPTS)
+
+  const [activityRaw, objectsRaw, tagsRaw, captionRaw] = fields
+  const activity = tidy(activityRaw)
 
   return {
-    activity: /^unclear$/i.test(activityRaw) || !activityRaw ? null : activityRaw,
-    objects: splitList(objectsRaw ?? ''),
-    tags: splitList(tagsRaw ?? ''),
+    activity: /^unclear$/i.test(activity) || !activity ? null : activity,
+    objects: splitList(objectsRaw),
+    tags: splitList(tagsRaw),
     caption: captionRaw || null,
     confidence: null,
     source: 'cloudinary:ai_vision_general',
     analyzedAt: new Date(),
   }
+}
+
+/**
+ * AI Vision analyses images only, so a video is analysed through a still
+ * frame that Cloudinary renders on the fly (start offset 1s, JPG). The
+ * observation therefore describes that frame, not the whole clip — the
+ * caller records this in the observation's `source`.
+ */
+export function videoPosterUrl(videoUrl: string): string {
+  return videoUrl
+    .replace('/video/upload/', '/video/upload/so_1/')
+    .replace(/\.[a-z0-9]+$/i, '.jpg')
 }

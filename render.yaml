@@ -1,0 +1,22 @@
+# Render blueprint for the API. Secrets are set in the dashboard (sync: false).
+services:
+  - type: web
+    name: visevi-api
+    runtime: node
+    rootDir: server
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: CORS_ORIGIN   # the deployed client origin, e.g. https://visevi.netlify.app
+        sync: false

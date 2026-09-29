@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 
-// Same hues as the accent palette in index.css.
-const HUES = ['#ff4d4d', '#ffd23f', '#ff6fb0', '#4d6bff', '#38d9ff', '#3ddc84']
+// Tints of white/red only, to stay inside the two-tone palette.
+const TINTS = ['#ffffff', '#ffd9db', '#ffb8bc']
 
 function rng(seed: number) {
   return () => {
@@ -13,56 +13,49 @@ function rng(seed: number) {
 }
 
 /**
- * Decorative branching "neuron" field, generated procedurally (inspired by
- * the Colorpong reference in docs/UI_DIRECTION.md — none of that artwork is
- * used). Deterministic per seed, one <path> per hue, so it is cheap to render.
- * Purely ornamental: aria-hidden, no pointer events, kept at low opacity.
+ * Decorative branching field, generated procedurally (inspired by the
+ * connectome reference in docs/UI_DIRECTION.md; none of that artwork is used).
+ * Deterministic per seed, one <path> per tint. Ornamental only: aria-hidden.
  */
 export function NeuralBackdrop({ seed = 7, className = '' }: { seed?: number; className?: string }) {
   const { lines, dots } = useMemo(() => {
     const rand = rng(seed)
-    const lines: string[] = HUES.map(() => '')
-    const dots: string[] = HUES.map(() => '')
+    const lines: string[] = TINTS.map(() => '')
+    const dots: string[] = TINTS.map(() => '')
     const cx = 620
-    const cy = 190
+    const cy = 250
 
-    function branch(x: number, y: number, angle: number, len: number, depth: number, hue: number) {
+    function branch(x: number, y: number, angle: number, len: number, depth: number, tint: number) {
       const bend = (rand() - 0.5) * 0.9
       const mx = x + Math.cos(angle + bend) * len * 0.5
       const my = y + Math.sin(angle + bend) * len * 0.5
       const ex = x + Math.cos(angle) * len
       const ey = y + Math.sin(angle) * len
-      lines[hue] += `M${x.toFixed(1)} ${y.toFixed(1)}Q${mx.toFixed(1)} ${my.toFixed(1)} ${ex.toFixed(1)} ${ey.toFixed(1)}`
+      lines[tint] += `M${x.toFixed(1)} ${y.toFixed(1)}Q${mx.toFixed(1)} ${my.toFixed(1)} ${ex.toFixed(1)} ${ey.toFixed(1)}`
       if (depth === 0) {
-        const r = 1.2 + rand() * 1.6
-        dots[hue] += `M${(ex - r).toFixed(1)} ${ey.toFixed(1)}a${r.toFixed(1)} ${r.toFixed(1)} 0 1 0 ${(2 * r).toFixed(1)} 0a${r.toFixed(1)} ${r.toFixed(1)} 0 1 0 ${(-2 * r).toFixed(1)} 0`
+        const r = 1.5 + rand() * 2
+        dots[tint] += `M${(ex - r).toFixed(1)} ${ey.toFixed(1)}a${r.toFixed(1)} ${r.toFixed(1)} 0 1 0 ${(2 * r).toFixed(1)} 0a${r.toFixed(1)} ${r.toFixed(1)} 0 1 0 ${(-2 * r).toFixed(1)} 0`
         return
       }
       const kids = 2 + (rand() < 0.35 ? 1 : 0)
       for (let k = 0; k < kids; k++) {
-        branch(ex, ey, angle + (rand() - 0.5) * 1.3, len * (0.62 + rand() * 0.2), depth - 1, rand() < 0.8 ? hue : Math.floor(rand() * HUES.length))
+        branch(ex, ey, angle + (rand() - 0.5) * 1.3, len * (0.62 + rand() * 0.2), depth - 1, rand() < 0.75 ? tint : Math.floor(rand() * TINTS.length))
       }
     }
 
-    const primaries = 11
+    const primaries = 12
     for (let i = 0; i < primaries; i++) {
-      const angle = (i / primaries) * Math.PI * 2 + rand() * 0.4
-      branch(cx, cy, angle, 70 + rand() * 40, 4, i % HUES.length)
+      branch(cx, cy, (i / primaries) * Math.PI * 2 + rand() * 0.4, 90 + rand() * 50, 4, i % TINTS.length)
     }
     return { lines, dots }
   }, [seed])
 
   return (
-    <svg
-      viewBox="0 0 1000 380"
-      preserveAspectRatio="xMaxYMid slice"
-      aria-hidden="true"
-      className={`pointer-events-none select-none ${className}`}
-    >
-      {HUES.map((c, i) => (
+    <svg viewBox="0 0 1000 500" preserveAspectRatio="xMaxYMid slice" aria-hidden="true" className={`pointer-events-none select-none ${className}`}>
+      {TINTS.map((c, i) => (
         <g key={c}>
-          <path d={lines[i]} stroke={c} strokeWidth="0.7" fill="none" opacity="0.55" />
-          <path d={dots[i]} fill={c} opacity="0.9" />
+          <path d={lines[i]} stroke={c} strokeWidth="0.9" fill="none" opacity="0.6" />
+          <path d={dots[i]} fill={c} opacity="0.95" />
         </g>
       ))}
     </svg>

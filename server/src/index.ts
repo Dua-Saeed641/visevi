@@ -1,9 +1,11 @@
+import compression from 'compression'
 import cors from 'cors'
 import express, { type ErrorRequestHandler } from 'express'
 import { env } from './env.js'
 import { connectMongo } from './lib/mongo.js'
 import { assetsRouter } from './routes/assets.js'
 import { healthRouter } from './routes/health.js'
+import { reportsRouter } from './routes/reports.js'
 
 async function main() {
   // Connect before accepting requests — fail loudly at startup rather than
@@ -13,11 +15,13 @@ async function main() {
 
   const app = express()
 
+  app.use(compression()) // JSON compresses ~5x; matters on a deployed link
   app.use(cors({ origin: env.corsOrigin }))
   app.use(express.json())
 
   app.use('/api/health', healthRouter)
   app.use('/api/assets', assetsRouter)
+  app.use('/api/reports', reportsRouter)
 
   const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     console.error(err)

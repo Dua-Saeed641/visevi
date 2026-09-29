@@ -83,18 +83,19 @@ export interface CompareSide {
 }
 
 export interface ChangeSummary {
-  diffDays: number
-  timeSpanLabel: string
-  newTags: string[]
-  removedTags: string[]
-  newObjects: string[]
-  removedObjects: string[]
-  emergedThemes: string[]
-  fadedThemes: string[]
-  activityChange: string
+  comparability: { level: 'comparable' | 'limited' | 'not-comparable'; headline: string; reasons: string[] }
+  time: { basis: 'capture-dates' | 'unavailable'; diffDays: number | null; label: string; beforeDate: string | null; afterDate: string | null }
+  scene: { tier: 'same-photo' | 'similar' | 'different' | 'unrelated' | 'unknown'; distance: number | null; bits: number; text: string }
+  activity: { relation: 'same' | 'related' | 'different' | 'unknown'; before: string | null; after: string | null; text: string }
+  themes: { shared: string[]; onlyBefore: string[]; onlyAfter: string[] }
+  objects: { shared: string[]; onlyBefore: string[]; onlyAfter: string[] }
+  overlap: { themes: number | null; objects: number | null; tags: number | null }
+  insights: string[]
+  caveats: string[]
   narrative: string
   method: string
-  visualSummary: string
+  timeSpanLabel: string
+  diffDays: number | null
 }
 
 export interface CompareResult {
@@ -182,10 +183,29 @@ export interface GraphData {
 }
 
 export interface Overview {
+  kpis: {
+    totalAssets: number
+    projects: number
+    locations: number
+    verified: number
+    unverified: number
+    flagged: number
+    verifiedRate: number
+    assertedIndicators: number
+  }
   totalAssets: number
   perProject: { name: string; verified: number; unverified: number; flagged: number }[]
+  points: { id: string; project: string; date: string; status: 'VERIFIED' | 'UNVERIFIED' | 'FLAGGED'; label: string | null }[]
+  checks: { id: string; label: string; pass: number; fail: number; skipped: number }[]
   themes: { name: string; count: number }[]
-  months: { month: string; count: number }[]
+  indicators: {
+    project: string
+    code: string
+    title: string
+    confidence: number
+    status: 'asserted' | 'needs-review'
+    backing: number
+  }[]
 }
 
 export interface ProjectSimple {
@@ -262,8 +282,18 @@ export const api = {
   getGraph: () => request<GraphData>('/api/reports/graph'),
 }
 
-/** Still image to show for an asset: the image itself, or a rendered frame for video. */
-export function thumbUrl(asset: Pick<Asset, 'cloudinaryUrl' | 'resourceType'>): string {
-  if (asset.resourceType !== 'video') return asset.cloudinaryUrl
-  return asset.cloudinaryUrl.replace('/video/upload/', '/video/upload/so_1/').replace(/\.[a-z0-9]+$/i, '.jpg')
+/**
+ * Resized delivery URL for previews. Cloudinary generates and caches the
+ * smaller rendition on first request (c_limit never upscales, q_auto/f_auto
+ * pick quality and format), so cards load a few KB instead of the full image.
+ * Video gets a rendered still frame.
+ */
+export function thumbUrl(asset: Pick<Asset, 'cloudinaryUrl'> & { resourceType?: string }, width = 640): string {
+  const url = asset.cloudinaryUrl
+  if (asset.resourceType === 'video' || url.includes('/video/upload/')) {
+    return url
+      .replace('/video/upload/', `/video/upload/so_1,w_${width},c_limit,q_auto/`)
+      .replace(/.[a-z0-9]+$/i, '.jpg')
+  }
+  return url.replace('/image/upload/', `/image/upload/w_${width},c_limit,q_auto,f_auto/`)
 }

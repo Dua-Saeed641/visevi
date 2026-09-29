@@ -1,0 +1,79 @@
+{
+  "_readme": "Demo dataset: real, dated repeat imagery (NASA/USGS/Planet) — genuine before/after pairs of the same site. Each item is uploaded through the normal API, so the AI observation and verification result are computed, never scripted. 'demo' items are deliberate integrity-check demonstrations.",
+  "items": [
+    {
+      "project": "Rondônia Forest Monitoring",
+      "description": "Satellite monitoring of forest cover and land clearing along the Rio Machado corridor, Rondônia, Brazil.",
+      "location": "Rondônia, Brazil",
+      "stage": "Baseline",
+      "capturedAt": "2014-06-18",
+      "url": "https://commons.wikimedia.org/wiki/Special:FilePath/Rond%C3%B4nia_Deforestation_(18_June_2014),_Brazil_(34722156551).jpg?width=1200",
+      "credit": "\"Rondônia Deforestation (18 June 2014), Brazil\" by O.V.E.R.V.I.E.W. (Landsat 8 / USGS data), CC BY 2.0, via Wikimedia Commons"
+    },
+    {
+      "project": "Rondônia Forest Monitoring",
+      "location": "Rondônia, Brazil",
+      "stage": "Follow-up",
+      "capturedAt": "2016-07-25",
+      "url": "https://commons.wikimedia.org/wiki/Special:FilePath/Rond%C3%B4nia_Deforestation_(25_July_2016),_Brazil_(34296310700).jpg?width=1200",
+      "credit": "\"Rondônia Deforestation (25 July 2016), Brazil\" by O.V.E.R.V.I.E.W. (Landsat 8 / USGS data), CC BY 2.0, via Wikimedia Commons"
+    },
+    {
+      "project": "Columbia Glacier Retreat Monitoring",
+      "description": "Repeat satellite imagery of Columbia Glacier, Alaska, tracking its retreat.",
+      "location": "Columbia Glacier, Alaska",
+      "stage": "Baseline",
+      "capturedAt": "2019-06-21",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/7/72/Alaska%E2%80%99s_Iconic_Columbia_Glacier_Still_Retreats_%28153291_-_oli_20190621%29.jpg",
+      "credit": "NASA Earth Observatory (Landsat 8 OLI), public domain, via Wikimedia Commons"
+    },
+    {
+      "project": "Columbia Glacier Retreat Monitoring",
+      "location": "Columbia Glacier, Alaska",
+      "stage": "Follow-up",
+      "capturedAt": "2024-08-05",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/d/d9/Alaska%E2%80%99s_Iconic_Columbia_Glacier_Still_Retreats_%28153291_-_oli_20240805%29.jpg",
+      "credit": "NASA Earth Observatory (Landsat OLI), public domain, via Wikimedia Commons"
+    },
+    {
+      "project": "Aral Sea Water Monitoring",
+      "description": "Satellite record of the Aral Sea's shrinking water surface between 1989 and 2008.",
+      "location": "Aral Sea, Central Asia",
+      "stage": "Baseline",
+      "capturedAt": "1989-09-01",
+      "dateNote": "Source states 'July–September 1989'; day is approximate.",
+      "url": "https://commons.wikimedia.org/wiki/Special:FilePath/Aral_Sea_1989-2008.jpg?width=1200",
+      "crop": { "left": 0, "top": 0, "width": 615, "height": 1088 },
+      "credit": "NASA Earth Observatory, 1989 half of 'Aral Sea 1989-2008' (derivative by Zafiroblue05), public domain, via Wikimedia Commons"
+    },
+    {
+      "project": "Aral Sea Water Monitoring",
+      "location": "Aral Sea, Central Asia",
+      "stage": "Follow-up",
+      "capturedAt": "2008-10-05",
+      "url": "https://commons.wikimedia.org/wiki/Special:FilePath/Aral_Sea_1989-2008.jpg?width=1200",
+      "crop": { "left": 620, "top": 0, "width": 660, "height": 1088 },
+      "credit": "NASA Earth Observatory, 2008 half of 'Aral Sea 1989-2008' (derivative by Zafiroblue05), public domain, via Wikimedia Commons"
+    },
+    {
+      "demo": "content-mismatch",
+      "project": "Integrity Demo — Solar Rooftop Installation",
+      "description": "Deliberate demonstration: a photo that does not show what its project claims.",
+      "location": "Demo site",
+      "stage": "Installation complete",
+      "capturedAt": "2026-03-01",
+      "url": "https://res.cloudinary.com/demo/image/upload/sample.jpg",
+      "credit": "Cloudinary demo sample image"
+    },
+    {
+      "demo": "reused-photo",
+      "project": "Integrity Demo — Glacier Survey Reuse",
+      "description": "Deliberate demonstration: a photo recycled from another project's evidence.",
+      "location": "Demo site",
+      "stage": "Follow-up",
+      "capturedAt": "2026-04-01",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/d/d9/Alaska%E2%80%99s_Iconic_Columbia_Glacier_Still_Retreats_%28153291_-_oli_20240805%29.jpg",
+      "credit": "Same NASA image as 'Columbia Glacier Retreat Monitoring' (re-used on purpose)"
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { StatusBadge } from '../components/StatusBadge'
+import { PageHeader } from '../components/ui'
 import { api, type Asset } from '../lib/api'
 
 interface FileResult {
@@ -7,9 +8,6 @@ interface FileResult {
   asset?: Asset
   error?: string
 }
-
-const inputClass =
-  'rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm outline-none focus:border-[var(--color-accent-blue)]'
 
 export function Upload() {
   const [files, setFiles] = useState<File[]>([])
@@ -28,19 +26,40 @@ export function Upload() {
     setSubmitting(true)
     setResults([])
     setProgress(0)
-    const out: FileResult[] = []
+    const out: FileResult[] = new Array(files.length)
+    let done = 0
+    let next = 0
 
-    // Sequential on purpose: each asset is verified against the library,
-    // including the ones uploaded just before it (duplicate detection).
-    for (const file of files) {
-      try {
-        const asset = await api.uploadAsset(file, { project, location, stage, capturedAt })
-        out.push({ name: file.name, asset })
-      } catch (err) {
-        out.push({ name: file.name, error: err instanceof Error ? err.message : 'Upload failed' })
+    // A few uploads in parallel: the slow part (Cloudinary upload + AI analysis)
+    // is waiting on the network. Parallel uploads can't see each other when
+    // verifying, so the library is re-verified once at the end.
+    const CONCURRENCY = 3
+    async function worker() {
+      while (next < files.length) {
+        const i = next++
+        const file = files[i]
+        try {
+          out[i] = { name: file.name, asset: await api.uploadAsset(file, { project, location, stage, capturedAt }) }
+        } catch (err) {
+          out[i] = { name: file.name, error: err instanceof Error ? err.message : 'Upload failed' }
+        }
+        done++
+        setProgress(done)
+        setResults(out.filter(Boolean))
       }
-      setProgress(out.length)
-      setResults([...out])
+    }
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, files.length) }, worker))
+
+    if (files.length > 1) {
+      try {
+        await api.reverifyAll()
+        const refreshed = await Promise.all(
+          out.map(async (r) => (r.asset ? { ...r, asset: await api.getAsset(r.asset.id).catch(() => r.asset) } : r)),
+        )
+        setResults(refreshed)
+      } catch {
+        /* results already shown; re-verification is best-effort here */
+      }
     }
 
     setSubmitting(false)
@@ -49,82 +68,62 @@ export function Upload() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold">Upload evidence</h1>
-      <p className="mt-1 text-[var(--color-text-muted)]">
-        Media is sent to Cloudinary, pre-processed, analyzed, and then verified against the project
-        it is filed under. Select several files to upload a batch.
-      </p>
+      <PageHeader eyebrow="Add evidence" title="Upload photos and video">
+        Files are pre-processed, analysed and verified on upload. Select several to upload a batch.
+      </PageHeader>
 
-      <form onSubmit={handleSubmit} className="mt-8 flex max-w-md flex-col gap-4">
-        <label className="flex flex-col gap-1 text-sm">
-          Project
-          <input required value={project} onChange={(e) => setProject(e.target.value)} className={inputClass} placeholder="Solar Village" />
-        </label>
-
-        <label className="flex flex-col gap-1 text-sm">
-          Location
-          <input required value={location} onChange={(e) => setLocation(e.target.value)} className={inputClass} placeholder="Village A" />
-        </label>
-
-        <div className="grid grid-cols-2 gap-4">
-          <label className="flex flex-col gap-1 text-sm">
-            Stage <span className="text-xs text-[var(--color-text-muted)]">(optional)</span>
-            <input value={stage} onChange={(e) => setStage(e.target.value)} className={inputClass} placeholder="Installation" />
+      <div className="grid gap-16 xl:grid-cols-[minmax(0,34rem)_1fr]">
+        <form onSubmit={handleSubmit} className="card card-accent space-y-6 p-8">
+          <label className="block">
+            <span className="mb-2 block text-lg font-bold">Project</span>
+            <input required className="input" value={project} onChange={(e) => setProject(e.target.value)} placeholder="Solar Village" />
           </label>
-          <label className="flex flex-col gap-1 text-sm">
-            Captured on <span className="text-xs text-[var(--color-text-muted)]">(optional)</span>
-            <input type="date" value={capturedAt} onChange={(e) => setCapturedAt(e.target.value)} className={inputClass} />
+          <label className="block">
+            <span className="mb-2 block text-lg font-bold">Location</span>
+            <input required className="input" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Village A" />
           </label>
+          <div className="grid gap-6 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-2 block text-lg font-bold">Stage <span className="font-normal text-muted">(optional)</span></span>
+              <input className="input" value={stage} onChange={(e) => setStage(e.target.value)} placeholder="Installation" />
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-lg font-bold">Captured on <span className="font-normal text-muted">(optional)</span></span>
+              <input type="date" className="input" value={capturedAt} onChange={(e) => setCapturedAt(e.target.value)} />
+            </label>
+          </div>
+          <label className="block">
+            <span className="mb-2 block text-lg font-bold">Files</span>
+            <input
+              required multiple type="file" accept="image/*,video/*"
+              onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+              className="input file:mr-4 file:cursor-pointer file:border-0 file:bg-brand file:px-4 file:py-2 file:font-bold file:text-white"
+            />
+            {files.length > 1 && <span className="mt-2 block text-base text-muted">{files.length} files selected</span>}
+          </label>
+          <button type="submit" disabled={submitting || files.length === 0} className="btn w-full text-lg">
+            {submitting ? `Uploading: ${progress} of ${files.length} done` : 'Upload'}
+          </button>
+        </form>
+
+        <div>
+          {results.length > 0 && <h2 className="mb-5 border-b-4 border-ink pb-2 text-2xl font-bold">Results</h2>}
+          <ul className="space-y-5">
+            {results.map((r, i) => (
+              <li key={i} className="card p-6">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="truncate text-lg font-bold">{r.name}</span>
+                  {r.asset && <StatusBadge status={r.asset.verificationStatus ?? 'UNVERIFIED'} />}
+                </div>
+                {r.error && <p className="mt-2 text-lg text-brand-dark">{r.error}</p>}
+                {r.asset?.observation?.caption && <p className="mt-2 text-lg">{r.asset.observation.caption}</p>}
+                {r.asset?.verificationNote && <p className="mt-2 text-base leading-relaxed text-muted">{r.asset.verificationNote}</p>}
+                {r.asset?.observationError && <p className="mt-2 text-base text-brand-dark">Analysis note: {r.asset.observationError}</p>}
+              </li>
+            ))}
+          </ul>
         </div>
-
-        <label className="flex flex-col gap-1 text-sm">
-          Files
-          <input
-            required
-            multiple
-            type="file"
-            accept="image/*,video/*"
-            onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
-            className="text-sm text-[var(--color-text-muted)]"
-          />
-          {files.length > 1 && <span className="text-xs text-[var(--color-text-muted)]">{files.length} files selected</span>}
-        </label>
-
-        <button
-          type="submit"
-          disabled={submitting || files.length === 0}
-          className="mt-2 cursor-pointer rounded bg-[var(--color-accent-blue)] px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {submitting ? `Uploading ${progress + 1} of ${files.length}…` : 'Upload'}
-        </button>
-      </form>
-
-      {results.length > 0 && (
-        <ul className="mt-8 max-w-2xl space-y-3">
-          {results.map((r, i) => (
-            <li key={i} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-sm">
-              <div className="flex items-center justify-between gap-3">
-                <span className="truncate font-medium">{r.name}</span>
-                {r.asset && <StatusBadge status={r.asset.verificationStatus ?? 'UNVERIFIED'} />}
-              </div>
-              {r.error && <p className="mt-1 text-xs text-[var(--color-accent-red)]">{r.error}</p>}
-              {r.asset && (
-                <>
-                  {r.asset.observation?.caption && (
-                    <p className="mt-1 text-xs italic text-[var(--color-text-muted)]">"{r.asset.observation.caption}"</p>
-                  )}
-                  {r.asset.verificationNote && (
-                    <p className="mt-1 text-xs text-[var(--color-text-muted)]">{r.asset.verificationNote}</p>
-                  )}
-                  {r.asset.observationError && (
-                    <p className="mt-1 text-xs text-[var(--color-accent-orange)]">Analysis note: {r.asset.observationError}</p>
-                  )}
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+      </div>
     </div>
   )
 }

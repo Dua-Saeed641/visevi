@@ -1,80 +1,209 @@
 @import "tailwindcss";
 
 /*
- * Dark theme is the default look, not a toggle — see docs/UI_DIRECTION.md.
- * Palette pulled from the connectome/neuron visual reference: near-black
- * background, vivid multi-hue accents reserved for meaningful categories
- * (verification status, indicator type, project type) rather than decoration.
+ * Type: Helvetica for body and UI. Two display faces, used sparingly:
+ *  - Qurova: the VisEvi wordmark and page titles (h1) only.
+ *  - Elegance Natural Valentine: smaller headings (h2, h3).
+ * Both ship as a single regular weight, so faux-bold is switched off below.
  */
-:root {
-  --color-bg: #08090c;
-  --color-surface: #101218;
-  --color-border: #1f2230;
-  --color-text: #e6e8ef;
-  --color-text-muted: #8b8fa3;
+@font-face {
+  font-family: "Qurova";
+  src: url("/fonts/qurova.otf") format("opentype");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Valentine";
+  src: url("/fonts/valentine.otf") format("opentype");
+  font-weight: 400;
+  font-display: swap;
+}
 
-  --color-accent-red: #ff4d4d;
-  --color-accent-orange: #ff9640;
-  --color-accent-yellow: #ffd23f;
-  --color-accent-pink: #ff6fb0;
-  --color-accent-blue: #4d6bff;
-  --color-accent-cyan: #38d9ff;
-  --color-accent-green: #3ddc84;
+/*
+ * Two-tone system: red and white. Every other colour here is a tint or shade
+ * of one of those two (pinks are red mixed with white; ink is a near-black red).
+ * Status is never carried by hue alone — see StatusBadge and the chart legends
+ * (solid / light / hatched) — because red-on-red needs a second cue.
+ */
+@theme {
+  --color-paper: #ffffff;
+  --color-tint: #fff5f5;
+  --color-tint-2: #ffe2e3;
+  --color-line: #efd3d4;
+  --color-brand: #d6111e;
+  --color-brand-dark: #8f0b14;
+  --color-ink: #2a0b0e;
+  --color-muted: #7a5257;
+  --font-sans: "Helvetica Neue", Helvetica, Arial, "Liberation Sans", sans-serif;
+  --font-display: "Qurova", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-heading: "Valentine", "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+/* Everything in the UI is rem-based, so this one value scales type and spacing. */
+html {
+  font-size: 20px;
+}
+@media (min-width: 1700px) {
+  html {
+    font-size: 22px;
+  }
 }
 
 html,
 body,
 #root {
-  height: 100%;
+  min-height: 100%;
 }
 
 body {
-  background-color: var(--color-bg);
-  color: var(--color-text);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* ── Visual language (see docs/UI_DIRECTION.md) ───────────────────────────
- * The six-hue spectrum bar from the reference posters, used as a thin
- * signature accent — never as a large fill. */
-.spectrum-bar {
-  height: 3px;
-  background: linear-gradient(
-    90deg,
-    var(--color-accent-red) 0 16.66%,
-    var(--color-accent-yellow) 0 33.33%,
-    var(--color-accent-pink) 0 50%,
-    var(--color-accent-blue) 0 66.66%,
-    var(--color-accent-cyan) 0 83.33%,
-    var(--color-accent-green) 0 100%
-  );
+h1,
+h2,
+h3 {
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  font-weight: 400 !important; /* single-weight display fonts: never synthesise bold */
+  font-synthesis: none;
+}
+h1 {
+  font-family: var(--font-display);
+}
+h2,
+h3 {
+  font-family: var(--font-heading);
+}
+.wordmark {
+  font-family: var(--font-display);
+  font-weight: 400 !important;
+  font-synthesis: none;
+  letter-spacing: 0.01em;
 }
 
-/* Big, light numerals for headline figures (poster-style "02 / 04"). */
+::selection {
+  background: var(--color-brand);
+  color: #fff;
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+/* ── Small set of shared building blocks ─────────────────────────────── */
+.eyebrow {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-brand);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.7rem 1.4rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  border: 2px solid var(--color-brand);
+  background: var(--color-brand);
+  color: #fff;
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+.btn:hover:not(:disabled) {
+  background: var(--color-brand-dark);
+  border-color: var(--color-brand-dark);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn-outline {
+  background: transparent;
+  color: var(--color-brand);
+}
+.btn-outline:hover:not(:disabled) {
+  background: var(--color-brand);
+  color: #fff;
+  border-color: var(--color-brand);
+}
+.btn-white {
+  background: #fff;
+  color: var(--color-brand);
+  border-color: #fff;
+}
+.btn-white:hover:not(:disabled) {
+  background: var(--color-tint-2);
+  border-color: var(--color-tint-2);
+  color: var(--color-brand-dark);
+}
+.btn-ghost-white {
+  background: transparent;
+  color: #fff;
+  border-color: #fff;
+}
+.btn-ghost-white:hover:not(:disabled) {
+  background: #fff;
+  color: var(--color-brand);
+  border-color: #fff;
+}
+
+.input {
+  width: 100%;
+  padding: 0.7rem 0.9rem;
+  font-size: 1rem;
+  background: #fff;
+  border: 2px solid var(--color-line);
+  color: var(--color-ink);
+}
+.input:focus {
+  outline: none;
+  border-color: var(--color-brand);
+}
+.input::placeholder {
+  color: var(--color-muted);
+  opacity: 0.7;
+}
+
+/* Cards: white surface, hairline border, soft shadow. */
+.card {
+  background: #fff;
+  border: 1px solid var(--color-line);
+  box-shadow: 0 1px 2px rgba(42, 11, 14, 0.05), 0 12px 28px -16px rgba(42, 11, 14, 0.18);
+}
+.card-accent {
+  border-top: 4px solid var(--color-brand);
+}
+.card-hover {
+  transition: box-shadow 150ms, transform 150ms;
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 1px 2px rgba(42, 11, 14, 0.06), 0 18px 36px -16px rgba(42, 11, 14, 0.28);
+}
+
 .numeral {
-  font-weight: 300;
-  letter-spacing: -0.03em;
+  font-weight: 700;
+  letter-spacing: -0.04em;
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
 
-body {
-  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  -webkit-font-smoothing: antialiased;
-}
-
-/* Faint dotted grid behind the app so the dark canvas has some depth. */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background-image: radial-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px);
-  background-size: 28px 28px;
-  mask-image: linear-gradient(to bottom, black, transparent 70%);
-}
-
 @media print {
-  body::before { display: none; }
-  .spectrum-bar { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  aside,
+  .no-print {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
 }

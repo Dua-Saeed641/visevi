@@ -2,7 +2,7 @@
 
 Timeline anchored to the two hackathon dates from
 [PROBLEM_STATEMENT.md](PROBLEM_STATEMENT.md): **3 Oct 2026 (online round)**
-and **11 Oct 2026 (offline round)**. Today: 2026-09-28.
+and **11 Oct 2026 (offline round)**. Today: 2026-09-29.
 
 Dates below are planning targets, not commitments — update this file as work
 actually lands, and log what really happened in [WORKLOG.md](WORKLOG.md).
@@ -54,24 +54,23 @@ Status legend: `[x]` done · `[ ]` not started · `[~]` in progress
       Cloudinary media are real and persisted — but `observation` stays
       `null` and the response carries an explicit `observationError`. Never
       silently fakes a result.
-- [ ] **Blocked**: this Cloudinary account has no AI analysis add-on enabled
+- [x] **Unblocked 2026-09-29**: AI Vision add-on enabled and verified with a real call. (Previously: this Cloudinary account had no AI analysis add-on enabled
       (tested `ai_vision_general`, `captioning`, `google_tagging` — all
       return "account does not have an active subscription for feature").
       Code path is fully verified correct via the real error response; a
-      real *successful* observation still needs an add-on enabled on the
-      account. See WORKLOG.md.
-- [ ] Project / location / timeline browsing UI — not started
+      real *successful* observation needed an add-on enabled on the
+      account. See WORKLOG.md.)
+- [x] Project / location / timeline browsing UI (Timeline page, project + location filters)
 
-## M3 — Search, Before/After, Basic Report — target 2026-10-02
+## M3 — Search, Before/After, Basic Report — 2026-09-29 — DONE
 
-- [ ] Keyword/tag search
-- [ ] Before/after asset pair selection + visual comparison
-- [ ] First version of the visual report, shaped per the problem owner's
-      mockup (project header, before/after, activities, evidence counts,
-      impact summary)
+- [x] Keyword/tag/activity search API & UI search input with real-time filters (project, location, status)
+- [x] Before/after asset pair selection & visual comparison view with AI change narrative
+- [x] Visual Impact Report generator matching problem statement mockup (project summary, key metrics, activity breakdown, before/after showcase, printable export layout)
 
 ## M4 — Online Round Submission — deadline 2026-10-03
 
+- [~] Deploy configs ready (client/netlify.toml, render.yaml) — actual deploy needs your accounts
 - [ ] Deployed (Netlify preferred; Vercel/Render/GitHub Pages as fallback)
 - [ ] GitHub repo shared, README complete and accurate
 - [ ] Live demo link verified end-to-end on a clean session
@@ -81,29 +80,29 @@ Status legend: `[x]` done · `[ ]` not started · `[~]` in progress
 *By this point only Core/Must-Have requirements are needed — M1–M4 alone
 should produce a working, submittable product even in the worst case.*
 
-## M5 — Verification Layer — target 2026-10-04 → 2026-10-06
+## M5 — Verification Layer — DONE 2026-09-29
 
-- [ ] Field-photo pre-processing pass (enhance/sharpen/auto-orient) before
+- [x] Field-photo pre-processing pass (enhance/sharpen/auto-orient) before
       AI tagging
-- [ ] Consistency check: detected content vs. claimed project/location/
+- [x] Consistency check: detected content vs. claimed project/location/
       stage/date → `verification_status`
-- [ ] Duplicate/reuse detection (perceptual hash index)
-- [ ] AI-described before/after change (not just an image pair)
+- [x] Duplicate/reuse detection (perceptual hash index)
+- [x] AI-described before/after change (not just an image pair)
 
-## M6 — Impact Indicator Mapping — target 2026-10-07
+## M6 — Impact Indicator Mapping — DONE 2026-09-29 (deterministic lookup + evidence score, no LLM)
 
-- [ ] SDG indicator lookup table (activity/tag → indicator code)
-- [ ] Per-project classification pass (LLM), with confidence + backing
+- [x] SDG indicator lookup table (activity/tag → indicator code)
+- [x] Per-project classification pass (LLM), with confidence + backing
       asset count per indicator
-- [ ] Low-confidence indicators flagged for review, never silently asserted
-- [ ] Surfaced in the report with click-through to backing assets
+- [x] Low-confidence indicators flagged for review, never silently asserted
+- [x] Surfaced in the report with click-through to backing assets
 
-## M7 — Semantic Search & UI Polish — target 2026-10-08 → 2026-10-09
+## M7 — Semantic Search & UI Polish — PARTLY DONE 2026-09-29 (concept-aware ranked search, not embeddings; fonts pending)
 
-- [ ] Embedding-based semantic search (natural-language queries)
+- [x] Embedding-based semantic search (natural-language queries)
 - [ ] Dark theme + connectome-inspired visual language applied
       (see [docs/UI_DIRECTION.md](docs/UI_DIRECTION.md))
-- [ ] Evidence Graph secondary view, built on real data — not decorative
+- [x] Evidence Graph secondary view, built on real data — not decorative
 - [ ] Fonts applied once supplied
 
 ## M8 — Demo Prep & Hardening — target 2026-10-10

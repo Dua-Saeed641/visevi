@@ -1,56 +1,102 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, NavLink, Outlet } from 'react-router-dom'
 
-const navItems = [
-  { to: '/', label: 'Dashboard' },
-  { to: '/compare', label: 'Before/After' },
-  { to: '/report', label: 'Impact Report' },
-  { to: '/timeline', label: 'Timeline' },
-  { to: '/graph', label: 'Evidence Graph' },
-  { to: '/upload', label: 'Upload' },
+const groups = [
+  {
+    title: 'Explore',
+    items: [
+      { to: '/dashboard', label: 'Analytics' },
+      { to: '/library', label: 'Evidence library' },
+      { to: '/timeline', label: 'Timeline' },
+      { to: '/graph', label: 'Evidence graph' },
+    ],
+  },
+  {
+    title: 'Analyse',
+    items: [
+      { to: '/compare', label: 'Before / after' },
+      { to: '/report', label: 'Impact report' },
+    ],
+  },
+  { title: 'Add', items: [{ to: '/upload', label: 'Upload evidence' }] },
 ]
 
-export function Layout() {
+function Brand() {
   return (
-    <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] font-sans antialiased">
-      <header className="sticky top-0 z-50 border-b border-[var(--color-border)] bg-[var(--color-bg)]/80 backdrop-blur-md">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="h-3 w-3 rounded-full bg-[var(--color-accent-cyan)] shadow-[0_0_10px_var(--color-accent-cyan)]" />
-            <span className="text-xl font-semibold tracking-tight text-[var(--color-text)]">
-              VisEvi<span className="text-[var(--color-accent-green)]">.</span>
-            </span>
-            <span className="rounded-full bg-[var(--color-surface)] border border-[var(--color-border)] px-2 py-0.5 text-xs text-[var(--color-text-muted)] font-mono">
-              v1.0
-            </span>
-          </div>
+    <Link to="/" aria-label="VisEvi home" className="flex items-center gap-3 text-3xl font-bold tracking-tight text-ink">
+      <img src="/logo-red.png" alt="" className="h-9 w-auto" />
+      <span className="wordmark">VisEvi<span className="text-brand">.</span></span>
+    </Link>
+  )
+}
 
-          <nav className="flex flex-wrap items-center justify-end gap-x-5 gap-y-1 text-sm font-medium">
-            {navItems.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.to === '/'}
-                className={({ isActive }) =>
-                  isActive
-                    ? 'text-[var(--color-accent-cyan)] border-b-2 border-[var(--color-accent-cyan)] pb-1 transition-all font-semibold'
-                    : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors pb-1'
-                }
-              >
-                {item.label}
-              </NavLink>
+function NavList({ onNavigate }: { onNavigate?: () => void }) {
+  return (
+    <nav aria-label="Main">
+      {groups.map((g) => (
+        <div key={g.title} className="mb-8">
+          <p className="eyebrow mb-3">{g.title}</p>
+          <ul>
+            {g.items.map((item) => (
+              <li key={item.to}>
+                <NavLink
+                  to={item.to}
+                  onClick={onNavigate}
+                  className={({ isActive }) =>
+                    `block border-l-4 py-2.5 pl-4 text-lg font-bold transition-colors ${
+                      isActive
+                        ? 'border-brand bg-tint text-brand'
+                        : 'border-transparent text-ink hover:border-line hover:text-brand'
+                    }`
+                  }
+                >
+                  {item.label}
+                </NavLink>
+              </li>
             ))}
-          </nav>
+          </ul>
         </div>
-        <div className="spectrum-bar" />
-      </header>
+      ))}
+    </nav>
+  )
+}
 
-      <main className="mx-auto max-w-6xl px-6 py-8">
-        <Outlet />
+export function Layout() {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div className="min-h-screen bg-paper text-ink">
+      {/* Desktop sidebar */}
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r-2 border-ink bg-paper px-7 py-8 lg:flex">
+        <Brand />
+        <p className="mb-10 mt-2 text-base text-muted">Visual evidence intelligence</p>
+        <NavList />
+        <div className="mt-auto border-t border-line pt-5 text-base text-muted">
+          <Link to="/" className="font-bold text-ink hover:text-brand">
+            About the project
+          </Link>
+          <p className="mt-2">Built on Cloudinary AI Vision.</p>
+        </div>
+      </aside>
+
+      {/* Mobile top bar */}
+      <div className="sticky top-0 z-40 flex items-center justify-between border-b-2 border-ink bg-paper px-5 py-4 lg:hidden">
+        <Brand />
+        <button className="btn btn-outline" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-controls="mobile-nav">
+          {open ? 'Close' : 'Menu'}
+        </button>
+      </div>
+      {open && (
+        <div id="mobile-nav" className="border-b-2 border-ink bg-paper px-5 py-6 lg:hidden">
+          <NavList onNavigate={() => setOpen(false)} />
+        </div>
+      )}
+
+      <main className="px-6 py-10 sm:px-10 lg:ml-64 lg:px-12 lg:py-14">
+        <div className="mx-auto max-w-[96rem]">
+          <Outlet />
+        </div>
       </main>
-
-      <footer className="border-t border-[var(--color-border)] py-6 text-center text-xs text-[var(--color-text-muted)]">
-        VisEvi AI-Powered Impact & Sustainability Media Platform • Cloudinary Integration
-      </footer>
     </div>
   )
 }

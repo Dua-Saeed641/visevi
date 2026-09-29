@@ -123,9 +123,10 @@ Full detail: [ARCHITECTURE.md](ARCHITECTURE.md).
 | Frontend | React + TypeScript + Vite, Tailwind CSS | Implemented |
 | Backend | Node.js + TypeScript + Express | Implemented |
 | Database | MongoDB Atlas, official `mongodb` driver (no ORM) | Implemented |
-| Media platform | Cloudinary (upload, transformations, AI Vision analysis) | Implemented — AI analysis blocked on account add-on, see server/README.md |
-| AI / LLM | none yet | Deferred to M6/M7 on purpose |
-| Semantic search | MongoDB Atlas Vector Search | Deferred to M7 on purpose |
+| Media platform | Cloudinary (upload, incoming transformations, AI Vision analysis, resized delivery); capture dates are read from the original file's EXIF locally | Implemented |
+| Reasoning (verification, indicators, change narrative) | Deterministic server code over a concept lexicon — explainable, no external LLM | Implemented |
+| Search | Concept-aware ranked search (TF-IDF + lexicon query expansion); not embeddings | Implemented |
+| Perceptual hashing | `sharp` 64-bit dHash | Implemented |
 
 ## Local Development Setup
 
@@ -154,25 +155,89 @@ configure:
 - `DATABASE_URL` — a MongoDB Atlas connection string, database name included
   in the path (e.g. `mongodb+srv://user:pass@cluster.mongodb.net/visevi`)
 
-## Current Project Status
+## What's Built
 
-**M1–M2 implemented and verified end-to-end against real Cloudinary and
-MongoDB Atlas accounts.** What exists so far:
+Verified end-to-end against real Cloudinary and MongoDB Atlas accounts.
 
-- [x] Problem statement read and transcribed ([PROBLEM_STATEMENT.md](PROBLEM_STATEMENT.md))
-- [x] Requirements extracted and prioritized ([REQUIREMENTS.md](REQUIREMENTS.md))
-- [x] Architecture documented ([ARCHITECTURE.md](ARCHITECTURE.md))
-- [x] Backend and frontend scaffolded (M1)
-- [x] Upload pipeline: client → server → Cloudinary → MongoDB, verified with
-      real credentials
-- [x] Cloudinary AI Vision analysis wired (M2) — code path verified working;
-      blocked on the Cloudinary account having an AI analysis add-on enabled
-      (see server/README.md)
-- [ ] Verification checks (consistency, duplicate detection) — M5
-- [ ] Impact indicator mapping — M6
-- [ ] Semantic search — M7
+- **Ingestion:** single and batch upload (images and video) to Cloudinary, with
+  an auto-orient / enhance / sharpen pre-processing pass, project, location,
+  stage and capture date.
+- **Understanding:** Cloudinary AI Vision (`ai_vision_general`) → structured
+  observation (activity, objects, tags, caption). Video is analysed via a
+  still frame. Failures are surfaced, never faked.
+- **Verification layer:** every asset is checked and gets VERIFIED / UNVERIFIED
+  / FLAGGED with a stated reason per check — content vs claimed project,
+  consistency with the project's other evidence, duplicate/reuse detection
+  (perceptual hash, within and across projects), claimed vs EXIF capture date.
+- **Before/after:** side-by-side pair with a grounded change description
+  (diff of real observations), plus suggested pairs per location.
+- **Impact indicators:** evidence mapped to UN SDG targets with an evidence
+  score; weakly supported indicators are shown as "needs review", never
+  asserted; each links to its backing photos.
+- **Search:** natural-language, ranked, shows which concepts the query was
+  understood as.
+- **Views:** dashboard with analytics charts, timeline per project/location,
+  Evidence Graph (photos as nodes, search-to-zoom), printable impact report.
+- **Traceability:** each asset's record shows its Cloudinary public ID,
+  version and transformation history.
 
-Nothing below "Current" should be read as already built.
+### Known limitations (stated honestly)
+
+- Observations describe what is visible; nothing here measures quantities
+  ("68% of the roof") — the change description says so.
+- Search and indicator mapping recognise the concepts in
+  [`server/src/lib/lexicon.ts`](server/src/lib/lexicon.ts); an unlisted domain
+  needs its concepts added. This is deliberate (auditable), not an LLM.
+- The indicator score counts supporting assets; it is not a probability.
+- Assets uploaded before the verification layer was added have no perceptual
+  hash and can't be duplicate-matched.
+- No authentication or per-organisation access control.
+
+## Testing
+
+`server/test/e2e.mts` exercises every core feature against a running API using real
+Cloudinary and Atlas: upload and AI analysis, all verification outcomes, duplicate and
+EXIF-date checks, search, comparison accuracy, indicators, cache invalidation and speed.
+It uploads under `ZZTest ...` projects and deletes them afterwards.
+
+```bash
+cd server && npm run dev        # in one terminal
+cd server && npm run test:e2e   # in another
+```
+
+## Demo dataset
+
+`server/seed/manifest.json` lists real, dated repeat imagery from NASA, USGS
+and Planet Labs (public domain / CC BY): Rondônia forest clearing 2014→2016,
+Columbia Glacier 2019→2024 and the Aral Sea 1989→2008 — genuine same-site
+before/after pairs — plus two deliberate integrity demos (a mismatched photo
+and a reused photo). Each item is uploaded through the normal API, so AI
+observations and verification results are computed, not scripted.
+
+```bash
+cd server
+npm run seed                                  # localhost:4000
+npm run seed -- --api https://<your-api>      # seed a deployed API
+npm run seed -- --dry-run                     # validate downloads only
+npm run seed -- --clean                       # remove everything it seeded
+```
+
+Image credits are in the manifest (`credit` field per item).
+
+## Deployment
+
+The API and client deploy separately.
+
+1. **API (Render):** `render.yaml` defines the service. Set
+   `DATABASE_URL`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`,
+   `CLOUDINARY_API_SECRET` and `CORS_ORIGIN` (the client's URL) in the
+   dashboard. Atlas must allow the host under Network Access.
+2. **Client (Netlify):** `client/netlify.toml` defines the build. Set
+   `VITE_API_BASE_URL` to the API URL *before* building (Vite inlines it).
+3. Check `GET <api>/api/health`, then upload one image from the deployed
+   client.
+
+Free Render instances sleep when idle; open the API URL once before a demo.
 
 ## Future / Optional Capabilities
 

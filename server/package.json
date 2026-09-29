@@ -5,8 +5,11 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "seed:india": "tsx src/scripts/seedIndiaData.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "seed": "tsx seed/seed.ts",
+    "test:e2e": "tsx test/e2e.mts"
   },
   "keywords": [],
   "author": "",
@@ -14,13 +17,17 @@
   "type": "module",
   "dependencies": {
     "cloudinary": "^2.11.0",
+    "compression": "^1.8.2",
     "cors": "^2.8.6",
     "dotenv": "^18.0.4",
+    "exif-reader": "^2.0.3",
     "express": "^5.2.1",
     "mongodb": "^7.7.0",
-    "multer": "^2.4.0"
+    "multer": "^2.4.0",
+    "sharp": "^0.35.5"
   },
   "devDependencies": {
+    "@types/compression": "^1.8.1",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/multer": "^2.2.0",
