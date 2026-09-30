@@ -166,7 +166,7 @@ export function Compare() {
 
   const c = data?.comparison
   const levelLabel = c && { comparable: 'Comparable pair', limited: 'Limited comparability', 'not-comparable': 'Not a valid before and after' }[c.comparability.level]
-  const tier = c && { 'same-photo': 'Near-identical', similar: 'Similar framing', different: 'Substantially different', unrelated: 'Visually unrelated', unknown: 'Not available' }[c.scene.tier]
+  const tier = c && { 'same-footprint': 'Same place', 'same-photo': 'Near-identical', similar: 'Similar framing', different: 'Substantially different', unrelated: 'Visually unrelated', unknown: 'Not available' }[c.scene.tier]
 
   return (
     <div>
@@ -189,7 +189,7 @@ export function Compare() {
                 {report.suggestedPairs.map((p) => (
                   <li key={p.location}>
                     <Link to={`/compare?beforeId=${p.beforeId}&afterId=${p.afterId}`} className="block border-2 border-brand bg-white px-4 py-2.5 text-lg font-bold text-brand hover:bg-brand hover:text-white">
-                      {p.location} &middot; {p.spanDays} days apart
+                      {p.location} &middot; {p.spanDays} days apart{p.sameSeason ? ', same season' : ''}
                     </Link>
                   </li>
                 ))}
@@ -222,6 +222,7 @@ export function Compare() {
             </Tile>
             <Tile label="Framing">
               <p className="text-2xl font-bold">{tier}</p>
+              {c.scene.tier === 'same-footprint' && <p className="mt-2 text-lg text-muted">Identical coordinates and extent</p>}
               {c.scene.distance !== null && <p className="mt-2 text-lg text-muted">Fingerprint distance {c.scene.distance} of {c.scene.bits}</p>}
             </Tile>
             <Tile label="Description overlap">
@@ -263,7 +264,28 @@ export function Compare() {
           <div className="mb-10 grid gap-6 xl:grid-cols-2">
             <InsightCard title="Same place?">
               <p>{c.scene.text}</p>
+              {data.before.capture && (
+                <p className="text-lg text-muted">
+                  Source: NASA Worldview satellite snapshots. {data.before.capture.provenance === 'failed' || data.after.capture?.provenance === 'failed'
+                    ? 'One of the two failed its provenance check.'
+                    : 'Both were confirmed against NASA for their coordinates and dates.'}
+                </p>
+              )}
             </InsightCard>
+            {c.visual && (
+              <InsightCard title="Measured change">
+                <dl className="grid grid-cols-3 gap-x-4 gap-y-3 text-lg">
+                  <dt className="font-bold text-muted"></dt><dd className="font-bold text-muted">Before</dd><dd className="font-bold text-muted">After</dd>
+                  <dt>Vegetation greenness</dt><dd>{c.visual.measured.before.green.toFixed(2)}</dd><dd>{c.visual.measured.after.green.toFixed(2)}</dd>
+                  <dt>Water-like area</dt><dd>{Math.round(c.visual.measured.before.waterPct)}%</dd><dd>{Math.round(c.visual.measured.after.waterPct)}%</dd>
+                  <dt>Cloud cover</dt><dd>{Math.round(c.visual.measured.before.cloudPct)}%</dd><dd>{Math.round(c.visual.measured.after.cloudPct)}%</dd>
+                </dl>
+                <ul className="list-disc space-y-2 pl-6 text-lg">
+                  {c.visual.lines.map((l) => <li key={l}>{l}</li>)}
+                </ul>
+                {c.visual.seasonNote && <p className="border-l-4 border-brand bg-tint px-4 py-3 text-lg">{c.visual.seasonNote}</p>}
+              </InsightCard>
+            )}
             <InsightCard title="Activity">
               <p>{c.activity.text}</p>
             </InsightCard>

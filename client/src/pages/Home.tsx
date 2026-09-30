@@ -1,84 +1,106 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { NeuralBackdrop } from '../components/NeuralBackdrop'
-import { api, type Overview } from '../lib/api'
+import { SignalArt } from '../components/SignalArt'
+import { api, signalsApi, type AlertSummary, type Overview, type RiskResponse, type SitesResponse } from '../lib/api'
 
 const steps = [
-  { n: '01', title: 'Ingest', text: 'Photos and video go to Cloudinary. Field shots are straightened, enhanced and sharpened on the way in, so blurry phone pictures survive analysis.' },
-  { n: '02', title: 'Understand', text: 'Cloudinary AI Vision reads each image and returns what is happening, which objects are visible and a plain-language caption. Nothing is typed in by hand.' },
-  { n: '03', title: 'Verify', text: 'Every photo is checked against the project it is filed under. Mismatches and recycled photos are flagged, with the reason stated.' },
-  { n: '04', title: 'Report', text: 'Verified evidence becomes before and after comparisons, a project timeline, UN SDG indicator mapping and a printable impact report.' },
+  { n: '01', title: 'Signal', text: 'Live readings are judged against what is normal for each place and season.' },
+  { n: '02', title: 'Capture', text: 'A breach pulls a fresh NASA satellite view of the site through Cloudinary.' },
+  { n: '03', title: 'Verify', text: 'It is compared with the same season a year earlier. Confirmed, or not.' },
+  { n: '04', title: 'Notify', text: 'The people responsible are told, with the evidence attached.' },
 ]
 
-const checks = [
-  { title: 'Content matches the claim', text: 'A photo filed under a solar project should show solar equipment. If the AI sees a flower, it is flagged.' },
-  { title: 'Consistent with the project', text: 'The photo is compared with the rest of the evidence in the same project, not judged in isolation.' },
-  { title: 'Not a reused photo', text: 'A perceptual fingerprint catches the same picture recycled across projects or reporting periods, even after resizing or recompression.' },
-  { title: 'Date matches the file', text: 'The capture date claimed at upload is compared with the date embedded in the image itself.' },
+const factors = [
+  { w: 25, label: 'Long-run exposure', src: 'NASA hazard maps' },
+  { w: 20, label: 'Live conditions', src: 'Current reading' },
+  { w: 20, label: '7-day outlook', src: 'Forecast' },
+  { w: 15, label: 'Recent incidents', src: 'Alert history' },
+  { w: 10, label: 'Nearby events', src: 'NASA EONET' },
+  { w: 10, label: 'Hazard signs in imagery', src: 'Cloudinary AI' },
 ]
 
 const cloudinary = [
-  'Upload with incoming transformations: auto-orient, enhance, sharpen',
-  'AI Vision analysis for activity, objects, tags and captions',
-  'Public ID, version and transformation history kept on every asset',
-  'On-the-fly resized delivery for fast previews',
-  'Rendered still frames so video can be analysed',
+  'Pre-processing on upload: auto-orient, enhance, sharpen',
+  'AI Vision reads every capture: activity, objects, tags, caption',
+  'Provenance: satellite snapshots are re-requested from NASA and matched',
+  'One delivery URL composes before, after and the reading',
+  'Public ID, version and transformations kept on every asset',
 ]
 
-export function Home() {
-  const [data, setData] = useState<Overview | null>(null)
-  useEffect(() => {
-    api.getOverview().then(setData).catch(() => {})
-  }, [])
+const limits = [
+  'Satellite views are about 250 m per pixel: they show drying, snow and gross water change, not waves or street-level damage.',
+  'The risk index is a transparent weighted formula, not a trained model. Its weights are judgement.',
+  'Live layers are one to five days behind. Hazard-zone maps are historical, not forecasts.',
+  '"Not confirmed" and "inconclusive" are real answers. Heat is often invisible from orbit.',
+]
 
-  const k = data?.kpis
+function useLive() {
+  const [sites, setSites] = useState<SitesResponse | null>(null)
+  const [alerts, setAlerts] = useState<AlertSummary[] | null>(null)
+  const [risk, setRisk] = useState<RiskResponse | null>(null)
+  const [overview, setOverview] = useState<Overview | null>(null)
+  useEffect(() => {
+    signalsApi.sites().then(setSites).catch(() => {})
+    signalsApi.alerts().then(setAlerts).catch(() => {})
+    signalsApi.risk().then(setRisk).catch(() => {})
+    api.getOverview().then(setOverview).catch(() => {})
+  }, [])
+  return { sites, alerts, risk, overview }
+}
+
+export function Home() {
+  const { sites, alerts, risk, overview } = useLive()
+  const open = alerts ? alerts.filter((a) => a.status !== 'resolved').length : null
+  const top = risk?.sites[0]
+
   const figures = [
-    { value: k ? k.totalAssets : '-', label: 'Evidence assets' },
-    { value: k ? k.projects : '-', label: 'Projects' },
-    { value: k ? `${k.verifiedRate}%` : '-', label: 'Verified' },
-    { value: k ? k.flagged : '-', label: 'Flagged for review' },
+    { value: open ?? '-', label: 'Active alerts' },
+    { value: sites ? sites.sites.length : '-', label: 'Sites monitored' },
+    { value: top ? top.score : '-', label: top ? `Highest risk, ${top.name.split(',')[0]}` : 'Highest risk score' },
+    { value: overview ? `${overview.kpis.verifiedRate}%` : '-', label: 'Evidence verified' },
   ]
 
   return (
     <div className="min-h-screen bg-paper text-ink">
       {/* Hero */}
-      <section className="relative overflow-hidden bg-brand text-white">
-        <NeuralBackdrop className="absolute inset-y-0 right-0 h-full w-full opacity-70 lg:w-3/4" seed={11} />
-        <div className="relative mx-auto max-w-[96rem] px-6 sm:px-10 lg:px-14">
-          <div className="flex items-center justify-between py-8">
+      <section className="bg-brand text-white">
+        <div className="mx-auto max-w-[96rem] px-6 sm:px-10 lg:px-14">
+          <div className="flex items-center justify-between py-7">
             <Link to="/" aria-label="VisEvi home" className="flex items-center gap-3 text-3xl font-bold tracking-tight">
               <img src="/logo.png" alt="" className="h-9 w-auto" />
               <span className="wordmark">VisEvi.</span>
             </Link>
-            <nav aria-label="Main" className="flex items-center gap-7 text-lg font-bold">
-              <Link to="/dashboard" className="hover:underline">Analytics</Link>
-              <Link to="/library" className="hover:underline">Library</Link>
-              <Link to="/upload" className="hover:underline">Upload</Link>
+            <nav aria-label="Main" className="flex items-center gap-4 text-base font-bold sm:gap-8 sm:text-lg">
+              <Link to="/dashboard" className="hover:underline">Dashboard</Link>
+              <Link to="/watch" className="hover:underline">Disaster watch</Link>
+              <Link to="/library" className="hidden hover:underline sm:inline">Evidence</Link>
+              <Link to="/upload" className="hidden hover:underline sm:inline">Upload</Link>
             </nav>
           </div>
 
-          <div className="max-w-4xl pb-20 pt-16 lg:pb-28 lg:pt-24">
-            <p className="text-sm font-bold uppercase tracking-[0.18em] text-white/80">
-              Geek Room hackathon &middot; Cloudinary problem statement
-            </p>
-            <h1 className="mt-6 text-6xl font-bold leading-[1.02] sm:text-7xl lg:text-8xl">
-              Evidence you can verify.
-            </h1>
-            <p className="mt-8 max-w-2xl text-2xl leading-relaxed text-white/90">
-              VisEvi turns raw project photos and video into traceable, searchable proof of what happened, where and when,
-              and checks every claim against what the image actually shows.
-            </p>
-            <div className="mt-10 flex flex-wrap gap-4">
-              <Link to="/library" className="btn btn-white text-lg">Open the evidence library</Link>
-              <Link to="/dashboard" className="btn btn-ghost-white text-lg">View analytics</Link>
+          <div className="grid items-center gap-10 pb-14 pt-6 lg:grid-cols-[1.05fr_0.95fr] lg:pb-20 lg:pt-10">
+            <div>
+              <h1 className="text-6xl font-bold leading-[1.02] sm:text-7xl xl:text-8xl">
+                Disaster signals, verified from orbit.
+              </h1>
+              <p className="mt-7 max-w-xl text-xl leading-relaxed text-white/90 sm:text-2xl">
+                A sensor raises the alarm. A satellite check confirms it. The right people are told.
+              </p>
+              <div className="mt-9 flex flex-wrap gap-4">
+                <Link to="/watch" className="btn btn-white text-lg">Open disaster watch</Link>
+                <Link to="/dashboard" className="btn btn-ghost-white text-lg">View dashboard</Link>
+              </div>
+            </div>
+            <div className="mx-auto w-full max-w-[34rem] lg:max-w-none">
+              <SignalArt className="h-auto w-full" />
             </div>
           </div>
 
           <dl className="grid grid-cols-2 border-t border-white/40 lg:grid-cols-4">
             {figures.map((f, i) => (
-              <div key={f.label} className={`py-8 lg:px-8 ${i === 0 ? 'lg:pl-0' : ''} ${i > 0 ? 'lg:border-l lg:border-white/40' : ''}`}>
-                <dd className="numeral text-6xl">{f.value}</dd>
-                <dt className="mt-2 text-lg text-white/85">{f.label}</dt>
+              <div key={f.label} className={`py-7 sm:py-8 ${i % 2 === 1 ? 'pl-5' : ''} lg:px-8 ${i === 0 ? 'lg:pl-0' : ''} ${i > 0 ? 'lg:border-l lg:border-white/40' : ''} ${i === 2 ? 'border-t border-white/40 lg:border-t-0' : ''} ${i === 3 ? 'border-t border-white/40 lg:border-t-0' : ''}`}>
+                <dd className="numeral text-5xl sm:text-6xl">{f.value}</dd>
+                <dt className="mt-2 text-base text-white/85 sm:text-lg">{f.label}</dt>
               </div>
             ))}
           </dl>
@@ -86,55 +108,39 @@ export function Home() {
       </section>
 
       <div className="mx-auto max-w-[96rem] px-6 sm:px-10 lg:px-14">
-        {/* Problem */}
-        <section className="grid gap-10 border-b-2 border-ink py-20 lg:grid-cols-[1fr_2fr]">
-          <div>
-            <p className="eyebrow">The problem</p>
-            <h2 className="mt-3 text-4xl font-bold">A photo is only evidence if it can be trusted.</h2>
-          </div>
-          <div className="space-y-5 text-xl leading-relaxed">
-            <p>
-              NGOs, governments and sustainability teams produce huge volumes of field photos and video. Organising them,
-              analysing them and proving they are genuine does not scale by hand.
-            </p>
-            <p className="text-muted">
-              A picture with no context, no place and no link back to its source is just a file. VisEvi ties each one to a
-              project, a location and a date, traces it to the exact Cloudinary asset, and tests whether it really shows
-              what it is filed as.
-            </p>
-          </div>
-        </section>
-
         {/* How it works */}
         <section className="py-20">
           <p className="eyebrow">How it works</p>
-          <h2 className="mt-3 max-w-3xl text-4xl font-bold">From raw media to a report you can defend.</h2>
-          <ol className="mt-14 grid gap-x-12 gap-y-14 md:grid-cols-2 xl:grid-cols-4">
+          <h2 className="mt-3 max-w-3xl text-4xl font-bold">From a reading to a confirmed alert.</h2>
+          <ol className="mt-12 grid gap-x-10 gap-y-12 sm:grid-cols-2 xl:grid-cols-4">
             {steps.map((s) => (
-              <li key={s.n} className="border-t-4 border-brand pt-6">
-                <span className="numeral text-6xl text-brand">{s.n}</span>
-                <h3 className="mt-5 text-2xl font-bold">{s.title}</h3>
-                <p className="mt-3 text-lg leading-relaxed text-muted">{s.text}</p>
+              <li key={s.n} className="border-t-4 border-brand pt-5">
+                <span className="numeral text-5xl text-brand">{s.n}</span>
+                <h3 className="mt-4 text-2xl font-bold">{s.title}</h3>
+                <p className="mt-2 text-lg leading-relaxed text-muted">{s.text}</p>
               </li>
             ))}
           </ol>
         </section>
 
-        {/* Verification */}
-        <section className="grid gap-12 border-t-2 border-ink py-20 lg:grid-cols-[1fr_2fr]">
+        {/* Risk index */}
+        <section className="grid gap-12 border-t-2 border-ink py-20 lg:grid-cols-[1fr_1.4fr]">
           <div>
-            <p className="eyebrow">The difference</p>
-            <h2 className="mt-3 text-4xl font-bold">Four checks on every photo.</h2>
+            <p className="eyebrow">Risk index</p>
+            <h2 className="mt-3 text-4xl font-bold">One number for how prone a place is.</h2>
             <p className="mt-5 text-lg leading-relaxed text-muted">
-              Most tools stop at organising media. VisEvi also asks whether it can be believed, and shows its working.
+              Zero to a hundred, with a separate confidence score showing how much of it rests on fresh, sourced data.
             </p>
+            <Link to="/report" className="btn btn-outline mt-7 text-lg">See a site report</Link>
           </div>
-          <ul className="grid gap-x-12 gap-y-10 sm:grid-cols-2">
-            {checks.map((c, i) => (
-              <li key={c.title}>
-                <p className="numeral text-3xl text-brand">{String(i + 1).padStart(2, '0')}</p>
-                <h3 className="mt-3 text-xl font-bold">{c.title}</h3>
-                <p className="mt-2 text-lg leading-relaxed text-muted">{c.text}</p>
+          <ul className="grid gap-x-10 gap-y-2 sm:grid-cols-2">
+            {factors.map((f) => (
+              <li key={f.label} className="flex items-baseline justify-between gap-4 border-b border-line py-3">
+                <span>
+                  <span className="block text-lg font-bold">{f.label}</span>
+                  <span className="text-base text-muted">{f.src}</span>
+                </span>
+                <span className="numeral text-3xl text-brand">{f.w}</span>
               </li>
             ))}
           </ul>
@@ -146,31 +152,25 @@ export function Home() {
             <p className="eyebrow">Built on Cloudinary</p>
             <h2 className="mt-3 text-4xl font-bold">Cloudinary is the engine, not the storage.</h2>
             <ul className="mt-8 divide-y divide-line border-y border-line text-lg">
-              {cloudinary.map((c) => (
-                <li key={c} className="py-3">{c}</li>
-              ))}
+              {cloudinary.map((c) => <li key={c} className="py-3">{c}</li>)}
             </ul>
           </div>
           <div>
             <p className="eyebrow">Honest limits</p>
             <h2 className="mt-3 text-4xl font-bold">What it does not claim.</h2>
             <ul className="mt-8 space-y-4 text-lg leading-relaxed text-muted">
-              <li>Observations describe what is visible. It does not measure quantities such as the share of a roof covered.</li>
-              <li>Search and indicator mapping recognise the concepts in a curated, auditable lexicon, not an opaque model.</li>
-              <li>The indicator score counts supporting assets. It is not a probability.</li>
-              <li>Duplicate detection catches resized and recompressed copies, not crops.</li>
+              {limits.map((l) => <li key={l}>{l}</li>)}
             </ul>
           </div>
         </section>
       </div>
 
-      {/* Closing call to action */}
       <section className="bg-brand text-white">
         <div className="mx-auto flex max-w-[96rem] flex-col items-start justify-between gap-8 px-6 py-16 sm:px-10 lg:flex-row lg:items-center lg:px-14">
-          <h2 className="max-w-2xl text-4xl font-bold sm:text-5xl">See the seeded evidence and try the checks yourself.</h2>
+          <h2 className="max-w-2xl text-4xl font-bold sm:text-5xl">See it work on real sites.</h2>
           <div className="flex flex-wrap gap-4">
-            <Link to="/library" className="btn btn-white text-lg">Open the library</Link>
-            <Link to="/upload" className="btn btn-ghost-white text-lg">Upload a photo</Link>
+            <Link to="/watch" className="btn btn-white text-lg">Open disaster watch</Link>
+            <Link to="/dashboard" className="btn btn-ghost-white text-lg">View dashboard</Link>
           </div>
         </div>
       </section>

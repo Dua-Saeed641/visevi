@@ -8,6 +8,7 @@ import { Library } from './pages/Library'
 import { Report } from './pages/Report'
 import { Timeline } from './pages/Timeline'
 import { Upload } from './pages/Upload'
+import { Watch } from './pages/Watch'
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
         <Route path="report" element={<Report />} />
         <Route path="timeline" element={<Timeline />} />
         <Route path="graph" element={<Graph />} />
+        <Route path="watch" element={<Watch />} />
         <Route path="upload" element={<Upload />} />
       </Route>
     </Routes>

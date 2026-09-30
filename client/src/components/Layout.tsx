@@ -3,19 +3,20 @@ import { Link, NavLink, Outlet } from 'react-router-dom'
 
 const groups = [
   {
-    title: 'Explore',
+    title: 'Respond',
     items: [
-      { to: '/dashboard', label: 'Analytics' },
-      { to: '/library', label: 'Evidence library' },
-      { to: '/timeline', label: 'Timeline' },
-      { to: '/graph', label: 'Evidence graph' },
+      { to: '/dashboard', label: 'Dashboard' },
+      { to: '/watch', label: 'Disaster watch' },
     ],
   },
   {
-    title: 'Analyse',
+    title: 'Evidence',
     items: [
+      { to: '/library', label: 'Evidence library' },
+      { to: '/timeline', label: 'Timeline' },
+      { to: '/graph', label: 'Evidence graph' },
       { to: '/compare', label: 'Before / after' },
-      { to: '/report', label: 'Impact report' },
+      { to: '/report', label: 'Site report' },
     ],
   },
   { title: 'Add', items: [{ to: '/upload', label: 'Upload evidence' }] },
@@ -69,7 +70,7 @@ export function Layout() {
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r-2 border-ink bg-paper px-7 py-8 lg:flex">
         <Brand />
-        <p className="mb-10 mt-2 text-base text-muted">Visual evidence intelligence</p>
+        <p className="mb-10 mt-2 text-base text-muted">Disaster signals, verified</p>
         <NavList />
         <div className="mt-auto border-t border-line pt-5 text-base text-muted">
           <Link to="/" className="font-bold text-ink hover:text-brand">

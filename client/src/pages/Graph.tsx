@@ -3,8 +3,8 @@ import { AssetDetail } from '../components/AssetDetail'
 import { Empty, Loading, Notice, PageHeader } from '../components/ui'
 import { api, thumbUrl, type Asset, type GraphData, type GraphNode } from '../lib/api'
 
-const W = 1400
-const H = 860
+const BASE_W = 1400
+const BASE_H = 860
 
 const kindColor: Record<GraphNode['kind'], string> = {
   project: '#8f0b14',
@@ -20,8 +20,8 @@ const kindLabel: Record<GraphNode['kind'], string> = {
   theme: 'Detected theme',
   indicator: 'SDG indicator',
 }
-const kindRadius: Record<GraphNode['kind'], number> = { project: 18, location: 12, asset: 28, theme: 11, indicator: 13 }
-// Status ring: solid red / light red / dashed dark — distinguishable without colour.
+const baseRadius: Record<GraphNode['kind'], number> = { project: 18, location: 12, asset: 28, theme: 11, indicator: 13 }
+// Status ring: solid red / light red / dashed dark, distinguishable without colour.
 const ringOf = (status?: string) =>
   status === 'VERIFIED'
     ? { stroke: '#d6111e', dash: undefined, width: 4 }
@@ -39,14 +39,27 @@ interface View {
   w: number
   h: number
 }
-const FULL: View = { x: 0, y: 0, w: W, h: H }
+
+/**
+ * The canvas grows with the number of nodes, so a large library is spread out
+ * instead of packed into a fixed box. Nodes and text grow by the square root of
+ * that, so the graph stays legible when fully zoomed out.
+ */
+function worldFor(n: number) {
+  const k = Math.max(1, Math.sqrt(n / 40))
+  return { w: Math.round(BASE_W * k), h: Math.round(BASE_H * k), k, s: Math.sqrt(k) }
+}
+type World = ReturnType<typeof worldFor>
 
 /** Deterministic force layout with collision avoidance so photo nodes never overlap. */
-function layout(data: GraphData): Placed[] {
+function layout(data: GraphData, world: World): Placed[] {
+  const W = world.w
+  const H = world.h
+  const radius = (kind: GraphNode['kind']) => baseRadius[kind] * world.s
   const n = data.nodes.length
   const nodes: Placed[] = data.nodes.map((node, i) => {
     const angle = (i / Math.max(n, 1)) * Math.PI * 2
-    const ring = node.kind === 'project' ? 80 : node.kind === 'theme' || node.kind === 'indicator' ? 380 : 240
+    const ring = (node.kind === 'project' ? 80 : node.kind === 'theme' || node.kind === 'indicator' ? 380 : 240) * world.k
     return { ...node, x: W / 2 + Math.cos(angle) * ring, y: H / 2 + Math.sin(angle) * ring }
   })
   const index = new Map(nodes.map((nd, i) => [nd.id, i]))
@@ -60,8 +73,9 @@ function layout(data: GraphData): Placed[] {
   let seed = 42
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) - 0.5
 
-  for (let step = 0; step < 320; step++) {
-    const cooling = 1 - step / 320
+  const STEPS = 360
+  for (let step = 0; step < STEPS; step++) {
+    const cooling = 1 - step / STEPS
     for (let i = 0; i < n; i++) {
       for (let j = i + 1; j < n; j++) {
         let dx = nodes[i].x - nodes[j].x
@@ -69,9 +83,10 @@ function layout(data: GraphData): Placed[] {
         let d2 = dx * dx + dy * dy
         if (d2 < 1) { dx = rnd(); dy = rnd(); d2 = 1 }
         const d = Math.sqrt(d2)
-        let f = (5200 / d2) * cooling
-        const minD = kindRadius[nodes[i].kind] + kindRadius[nodes[j].kind] + 14
-        if (d < minD) f += (minD - d) * 0.35 // hard-ish collision push
+        // Repulsion scales with the canvas, so a bigger world really is more spread out.
+        let f = ((6500 * world.k) / d2) * cooling
+        const minD = radius(nodes[i].kind) + radius(nodes[j].kind) + 26 * world.s
+        if (d < minD) f += (minD - d) * 0.4 // collision push
         vx[i] += (dx / d) * f; vy[i] += (dy / d) * f
         vx[j] -= (dx / d) * f; vy[j] -= (dy / d) * f
       }
@@ -80,15 +95,15 @@ function layout(data: GraphData): Placed[] {
       const dx = nodes[b].x - nodes[a].x
       const dy = nodes[b].y - nodes[a].y
       const d = Math.sqrt(dx * dx + dy * dy) || 1
-      const f = (d - 120) * 0.018 * cooling
+      const f = (d - 130 * world.s) * 0.016 * cooling
       vx[a] += (dx / d) * f; vy[a] += (dy / d) * f
       vx[b] -= (dx / d) * f; vy[b] -= (dy / d) * f
     }
     for (let i = 0; i < n; i++) {
-      vx[i] += (W / 2 - nodes[i].x) * 0.003
-      vy[i] += (H / 2 - nodes[i].y) * 0.003
-      nodes[i].x = Math.min(W - 40, Math.max(40, nodes[i].x + vx[i]))
-      nodes[i].y = Math.min(H - 40, Math.max(40, nodes[i].y + vy[i]))
+      vx[i] += (W / 2 - nodes[i].x) * 0.0025
+      vy[i] += (H / 2 - nodes[i].y) * 0.0025
+      nodes[i].x = Math.min(W - 60, Math.max(60, nodes[i].x + vx[i]))
+      nodes[i].y = Math.min(H - 60, Math.max(60, nodes[i].y + vy[i]))
       vx[i] *= 0.6; vy[i] *= 0.6
     }
   }
@@ -121,8 +136,12 @@ export function Graph() {
   const understood = matches && result ? result.understood : []
   const searching = query.trim() !== '' && result?.q !== query.trim()
 
-  const [view, setView] = useState<View>(FULL)
-  const target = useRef<View>(FULL)
+  const world = useMemo(() => worldFor(data?.nodes.length ?? 0), [data])
+  const full = useMemo<View>(() => ({ x: 0, y: 0, w: world.w, h: world.h }), [world])
+  const aspect = world.h / world.w
+
+  const [view, setView] = useState<View>({ x: 0, y: 0, w: BASE_W, h: BASE_H })
+  const target = useRef<View>({ x: 0, y: 0, w: BASE_W, h: BASE_H })
   const svgRef = useRef<SVGSVGElement>(null)
   const drag = useRef<{ px: number; py: number; moved: number } | null>(null)
   const [grabbing, setGrabbing] = useState(false)
@@ -132,7 +151,7 @@ export function Graph() {
     api.getGraph().then(setData).catch((e: unknown) => setError(e instanceof Error ? e.message : 'Failed to load graph'))
   }, [])
 
-  const placed = useMemo(() => (data ? layout(data) : []), [data])
+  const placed = useMemo(() => (data ? layout(data, world) : []), [data, world])
   const byId = useMemo(() => new Map(placed.map((p) => [p.id, p])), [placed])
 
   // ── camera: ease the viewBox toward `target` ──
@@ -140,11 +159,17 @@ export function Graph() {
     target.current = v
   }
   useEffect(() => {
+    // A new world size (data just arrived): frame the whole graph.
+    target.current = full
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setView(full)
+  }, [full])
+  useEffect(() => {
     let raf = 0
     const tick = () => {
       setView((cur) => {
         const t = target.current
-        const k = 0.16
+        const k = 0.18
         const next = { x: cur.x + (t.x - cur.x) * k, y: cur.y + (t.y - cur.y) * k, w: cur.w + (t.w - cur.w) * k, h: cur.h + (t.h - cur.h) * k }
         const settled = Math.abs(next.x - t.x) + Math.abs(next.y - t.y) + Math.abs(next.w - t.w) < 0.5
         return settled ? t : next
@@ -159,7 +184,7 @@ export function Graph() {
   useEffect(() => {
     const q = query.trim()
     if (!q) {
-      flyTo(FULL)
+      flyTo(full)
       return
     }
     let ignore = false
@@ -171,17 +196,17 @@ export function Graph() {
           const m = new Map(hits.map((h) => ['a:' + h.id, h.match?.score ?? 0]))
           setResult({ q, matches: m, understood: hits[0]?.match?.expandedVia ?? [] })
           const pts = [...m.keys()].map((id) => byId.get(id)).filter((p): p is Placed => !!p)
-          if (pts.length === 0) return flyTo(FULL)
-          const pad = 90
+          if (pts.length === 0) return flyTo(full)
+          const pad = 110 * world.s
           const minX = Math.min(...pts.map((p) => p.x)) - pad
           const maxX = Math.max(...pts.map((p) => p.x)) + pad
           const minY = Math.min(...pts.map((p) => p.y)) - pad
           const maxY = Math.max(...pts.map((p) => p.y)) + pad
           // Keep the canvas aspect ratio, and never zoom in closer than ~300 units wide.
           let w = Math.max(maxX - minX, 300)
-          let h = Math.max(maxY - minY, 300 * (H / W))
-          if (w / h > W / H) h = w * (H / W)
-          else w = h * (W / H)
+          let h = Math.max(maxY - minY, 300 * aspect)
+          if (w / h > 1 / aspect) h = w * aspect
+          else w = h / aspect
           flyTo({ x: (minX + maxX) / 2 - w / 2, y: (minY + maxY) / 2 - h / 2, w, h })
         })
         .catch(() => {})
@@ -190,9 +215,12 @@ export function Graph() {
       ignore = true
       clearTimeout(t)
     }
-  }, [query, byId])
+  }, [query, byId, full, world.s, aspect])
 
-  // ── wheel zoom (non-passive so the page doesn't scroll) ──
+  // ── wheel / pinch zoom (non-passive so the page doesn't scroll) ──
+  // The zoom step is proportional to how far the wheel actually turned, and capped
+  // per event. A trackpad fires many small events per gesture; a fixed step per event
+  // (the old behaviour) made a light two-finger scroll fly far past where you wanted.
   useEffect(() => {
     const svg = svgRef.current
     if (!svg) return
@@ -200,16 +228,19 @@ export function Graph() {
       e.preventDefault()
       const rect = svg.getBoundingClientRect()
       const t = target.current
-      const scale = Math.min(Math.max(e.deltaY > 0 ? 1.15 : 1 / 1.15, 0.2), 5)
-      const w = Math.min(W * 1.2, Math.max(180, t.w * scale))
-      const h = w * (H / W)
+      const unit = e.deltaMode === 1 ? 32 : e.deltaMode === 2 ? 320 : 1 // lines and pages to pixels
+      const dy = e.deltaY * unit
+      // Pinch gestures arrive as ctrl+wheel with small deltas, so they get a stronger response.
+      const factor = Math.min(1.12, Math.max(1 / 1.12, Math.exp(dy * (e.ctrlKey ? 0.012 : 0.0011))))
+      const w = Math.min(world.w * 1.15, Math.max(160, t.w * factor))
+      const h = w * aspect
       const fx = (e.clientX - rect.left) / rect.width
       const fy = (e.clientY - rect.top) / rect.height
       flyTo({ x: t.x + (t.w - w) * fx, y: t.y + (t.h - h) * fy, w, h })
     }
     svg.addEventListener('wheel', onWheel, { passive: false })
     return () => svg.removeEventListener('wheel', onWheel)
-  }, [data])
+  }, [data, world.w, aspect])
 
   const onPointerDown = (e: React.PointerEvent) => {
     drag.current = { px: e.clientX, py: e.clientY, moved: 0 }
@@ -260,16 +291,17 @@ export function Graph() {
     }
   }
 
-  const zoomed = view.w < W * 0.55
+  const s = world.s
+  const zoomed = view.w < world.w * 0.55
   const zoomBy = (f: number) => {
     const t = target.current
-    const w = Math.min(W * 1.2, Math.max(180, t.w * f))
-    const h = w * (H / W)
+    const w = Math.min(world.w * 1.15, Math.max(160, t.w * f))
+    const h = w * aspect
     flyTo({ x: t.x + (t.w - w) / 2, y: t.y + (t.h - h) / 2, w, h })
   }
-  const onZoomIn = () => zoomBy(1 / 1.4)
-  const onZoomOut = () => zoomBy(1.4)
-  const onReset = () => flyTo(FULL)
+  const onZoomIn = () => zoomBy(1 / 1.3)
+  const onZoomOut = () => zoomBy(1.3)
+  const onReset = () => flyTo(full)
 
   return (
     <div>
@@ -289,7 +321,7 @@ export function Graph() {
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder='For example "glacier" or "forest clearing"'
+                placeholder='For example "glacier" or "flooded coast"'
                 className="input"
               />
             </label>
@@ -301,15 +333,16 @@ export function Graph() {
                   ? matches.size === 0
                     ? 'No matching evidence'
                     : `${matches.size} match${matches.size === 1 ? '' : 'es'}${understood.length ? ', understood as ' + understood.join(', ') : ''}`
-                  : ''}
+                  : `${data.nodes.filter((n) => n.kind === 'asset').length} photos, ${data.nodes.filter((n) => n.kind === 'project').length} projects`}
             </p>
           </div>
 
-          <div className="relative overflow-hidden border-2 border-ink bg-white">
+          <div className="relative overflow-hidden rounded-lg border-2 border-ink bg-white">
             <svg
               ref={svgRef}
               viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
-              className="w-full touch-none select-none"
+              className="h-[72vh] min-h-[32rem] w-full touch-none select-none"
+              preserveAspectRatio="xMidYMid meet"
               style={{ cursor: grabbing ? 'grabbing' : 'grab' }}
               role="img"
               aria-label="Evidence graph"
@@ -321,7 +354,7 @@ export function Graph() {
               <defs>
                 {placed.filter((p) => p.kind === 'asset').map((p) => (
                   <clipPath key={p.id} id={`clip-${p.id}`}>
-                    <rect x={p.x - kindRadius.asset} y={p.y - kindRadius.asset} width={kindRadius.asset * 2} height={kindRadius.asset * 2} />
+                    <rect x={p.x - baseRadius.asset * s} y={p.y - baseRadius.asset * s} width={baseRadius.asset * s * 2} height={baseRadius.asset * s * 2} />
                   </clipPath>
                 ))}
               </defs>
@@ -340,21 +373,23 @@ export function Graph() {
                     d={`M${a.x} ${a.y}Q${mx} ${my} ${b.x} ${b.y}`}
                     fill="none"
                     stroke={stroke}
-                    strokeWidth={on && lit ? 2.4 : 1.4}
-                    opacity={on ? (lit ? 0.9 : 0.5) : 0.06}
+                    strokeWidth={(on && lit ? 2.4 : 1.4) * s}
+                    opacity={on ? (lit ? 0.9 : 0.42) : 0.05}
                   />
                 )
               })}
 
               {placed.map((p) => {
-                const r = kindRadius[p.kind]
+                const r = baseRadius[p.kind] * s
                 const dim = lit && !lit.has(p.id)
                 const isMatch = matches?.has(p.id)
                 const ring = ringOf(p.status)
+                // Only projects are labelled at full zoom-out; everything else appears as you zoom in or point at it.
+                const showLabel = p.kind === 'project' || zoomed || isMatch || (lit?.has(p.id) ?? false)
                 return (
                   <g
                     key={p.id}
-                    opacity={dim ? 0.12 : 1}
+                    opacity={dim ? 0.1 : 1}
                     style={{ transition: 'opacity 250ms' }}
                     onPointerEnter={() => setHover(p)}
                     onPointerLeave={() => setHover(null)}
@@ -363,26 +398,28 @@ export function Graph() {
                   >
                     {p.kind === 'asset' && p.url ? (
                       <>
-                        {isMatch && <rect x={p.x - r - 8} y={p.y - r - 8} width={r * 2 + 16} height={r * 2 + 16} fill="none" stroke="#2a0b0e" strokeWidth={3} />}
+                        {isMatch && <rect x={p.x - r - 8 * s} y={p.y - r - 8 * s} width={r * 2 + 16 * s} height={r * 2 + 16 * s} fill="none" stroke="#2a0b0e" strokeWidth={3 * s} />}
                         <image
                           href={thumbUrl({ cloudinaryUrl: p.url }, 120)}
                           x={p.x - r} y={p.y - r} width={r * 2} height={r * 2}
                           clipPath={`url(#clip-${p.id})`}
                           preserveAspectRatio="xMidYMid slice"
                         />
-                        <rect x={p.x - r} y={p.y - r} width={r * 2} height={r * 2} fill="none" stroke={ring.stroke} strokeWidth={ring.width} strokeDasharray={ring.dash} />
-                        {(zoomed || isMatch) && p.label && (
-                          <text x={p.x} y={p.y + r + 20} textAnchor="middle" fontSize={17} fontWeight="700" fill="#2a0b0e" stroke="#fff" strokeWidth={4} paintOrder="stroke">
-                            {p.label.length > 28 ? p.label.slice(0, 27) + '\u2026' : p.label}
+                        <rect x={p.x - r} y={p.y - r} width={r * 2} height={r * 2} fill="none" stroke={ring.stroke} strokeWidth={ring.width * s} strokeDasharray={ring.dash} />
+                        {showLabel && p.label && (
+                          <text x={p.x} y={p.y + r + 20 * s} textAnchor="middle" fontSize={16 * s} fontWeight="700" fill="#2a0b0e" stroke="#fff" strokeWidth={4 * s} paintOrder="stroke">
+                            {p.label.length > 28 ? p.label.slice(0, 27) + '…' : p.label}
                           </text>
                         )}
                       </>
                     ) : (
                       <>
-                        <circle cx={p.x} cy={p.y} r={r} fill={kindColor[p.kind]} stroke={p.kind === 'theme' ? '#8f0b14' : 'none'} strokeWidth={2} />
-                        <text x={p.x} y={p.y + r + 20} textAnchor="middle" fontSize={p.kind === 'project' ? 22 : 16} fontWeight={p.kind === 'project' ? 700 : 600} fill="#2a0b0e" stroke="#fff" strokeWidth={4} paintOrder="stroke">
-                          {p.label}
-                        </text>
+                        <circle cx={p.x} cy={p.y} r={r} fill={kindColor[p.kind]} stroke={p.kind === 'theme' ? '#8f0b14' : 'none'} strokeWidth={2 * s} />
+                        {showLabel && (
+                          <text x={p.x} y={p.y + r + 20 * s} textAnchor="middle" fontSize={(p.kind === 'project' ? 20 : 15) * s} fontWeight={p.kind === 'project' ? 700 : 600} fill="#2a0b0e" stroke="#fff" strokeWidth={4 * s} paintOrder="stroke">
+                            {p.label}
+                          </text>
+                        )}
                       </>
                     )}
                   </g>
@@ -393,7 +430,7 @@ export function Graph() {
             <div className="absolute right-4 top-4 flex flex-col gap-2">
               <ZoomButton label="+" title="Zoom in" onClick={onZoomIn} />
               <ZoomButton label="-" title="Zoom out" onClick={onZoomOut} />
-              <ZoomButton label="Reset" title="Reset view" onClick={onReset} />
+              <ZoomButton label="Fit" title="Fit the whole graph" onClick={onReset} />
             </div>
 
             <ul className="pointer-events-none absolute bottom-4 left-4 flex flex-wrap gap-x-5 gap-y-2 border-2 border-ink bg-white px-4 py-3 text-base">
@@ -412,7 +449,7 @@ export function Graph() {
               <div className="pointer-events-none absolute left-4 top-4 max-w-sm border-2 border-ink bg-white p-4 text-base shadow-lg">
                 <p className="text-lg font-bold">{hover.label}</p>
                 <p className="text-sm font-bold uppercase tracking-wider text-brand">
-                  {kindLabel[hover.kind]}{hover.status ? ` \u00b7 ${hover.status.toLowerCase()}` : ''}
+                  {kindLabel[hover.kind]}{hover.status ? ` · ${hover.status.toLowerCase()}` : ''}
                 </p>
                 {hover.meta && <p className="mt-1 text-muted">{hover.meta}</p>}
               </div>

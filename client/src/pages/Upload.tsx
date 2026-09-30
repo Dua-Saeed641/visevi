@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { StatusBadge } from '../components/StatusBadge'
 import { PageHeader } from '../components/ui'
-import { api, type Asset } from '../lib/api'
+import { api, signalsApi, type Asset } from '../lib/api'
 
 interface FileResult {
   name: string
@@ -15,6 +15,10 @@ export function Upload() {
   const [location, setLocation] = useState('')
   const [stage, setStage] = useState('')
   const [capturedAt, setCapturedAt] = useState('')
+  const [lat, setLat] = useState('')
+  const [lng, setLng] = useState('')
+  const [finding, setFinding] = useState(false)
+  const [findNote, setFindNote] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [progress, setProgress] = useState(0)
   const [results, setResults] = useState<FileResult[]>([])
@@ -39,7 +43,7 @@ export function Upload() {
         const i = next++
         const file = files[i]
         try {
-          out[i] = { name: file.name, asset: await api.uploadAsset(file, { project, location, stage, capturedAt }) }
+          out[i] = { name: file.name, asset: await api.uploadAsset(file, { project, location, stage, capturedAt, lat, lng }) }
         } catch (err) {
           out[i] = { name: file.name, error: err instanceof Error ? err.message : 'Upload failed' }
         }
@@ -91,6 +95,37 @@ export function Upload() {
               <span className="mb-2 block text-lg font-bold">Captured on <span className="font-normal text-muted">(optional)</span></span>
               <input type="date" className="input" value={capturedAt} onChange={(e) => setCapturedAt(e.target.value)} />
             </label>
+          </div>
+          <div className="grid gap-6 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-2 block text-lg font-bold">Latitude <span className="font-normal text-muted">(optional)</span></span>
+              <input type="number" step="any" min={-90} max={90} className="input" value={lat} onChange={(e) => setLat(e.target.value)} placeholder="25.75" />
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-lg font-bold">Longitude <span className="font-normal text-muted">(optional)</span></span>
+              <input type="number" step="any" min={-180} max={180} className="input" value={lng} onChange={(e) => setLng(e.target.value)} placeholder="71.39" />
+            </label>
+            <div className="sm:col-span-2">
+              <button
+                type="button" className="btn btn-outline" disabled={location.trim().length < 3 || finding}
+                onClick={async () => {
+                  setFinding(true); setFindNote(null)
+                  try {
+                    const r = await signalsApi.geocode(location)
+                    setLat(String(Math.round(r.lat * 1e4) / 1e4)); setLng(String(Math.round(r.lng * 1e4) / 1e4))
+                    setFindNote(`Found: ${r.displayName}`)
+                  } catch (e) {
+                    setFindNote(e instanceof Error ? 'No match. Enter coordinates by hand.' : 'Lookup failed.')
+                  } finally { setFinding(false) }
+                }}
+              >
+                {finding ? 'Looking up...' : 'Find coordinates from the location name'}
+              </button>
+              {findNote && <p className="mt-2 text-base text-muted">{findNote} (OpenStreetMap Nominatim)</p>}
+            </div>
+            <p className="text-base text-muted sm:col-span-2">
+              Coordinates make this location a monitored site: live temperature is watched there, and heat or cold alerts are matched to this evidence.
+            </p>
           </div>
           <label className="block">
             <span className="mb-2 block text-lg font-bold">Files</span>
