@@ -10,6 +10,8 @@
     "replay": "tsx src/scripts/replay.ts",
     "backfill:capture": "tsx src/scripts/backfillCapture.ts",
     "build": "tsc",
+    "postinstall": "tsc",
+    "render-build": "tsc",
     "start": "node dist/index.js",
     "seed": "tsx seed/seed.ts",
     "seed:satellite": "tsx seed/satellite.ts",
