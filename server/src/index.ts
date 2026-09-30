@@ -17,7 +17,7 @@ async function main() {
   const app = express()
 
   app.use(compression()) // JSON compresses ~5x; matters on a deployed link
-  app.use(cors({ origin: env.corsOrigin }))
+  app.use(cors({ origin: true, credentials: true }))
   app.use(express.json())
 
   app.use('/api/health', healthRouter)
