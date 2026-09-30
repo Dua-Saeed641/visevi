@@ -27,13 +27,13 @@
  */
 @theme {
   --color-paper: #ffffff;
-  --color-tint: #fff5f5;
-  --color-tint-2: #ffe2e3;
-  --color-line: #efd3d4;
-  --color-brand: #d6111e;
-  --color-brand-dark: #8f0b14;
-  --color-ink: #2a0b0e;
-  --color-muted: #7a5257;
+  --color-tint: #faf5f5;
+  --color-tint-2: #f3e5e6;
+  --color-line: #e2d5d6;
+  --color-brand: #a8242b;
+  --color-brand-dark: #7a181d;
+  --color-ink: #221b1c;
+  --color-muted: #6b5859;
   --font-sans: "Helvetica Neue", Helvetica, Arial, "Liberation Sans", sans-serif;
   --font-display: "Qurova", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-heading: "Valentine", "Helvetica Neue", Helvetica, Arial, sans-serif;

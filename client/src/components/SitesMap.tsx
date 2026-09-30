@@ -13,10 +13,10 @@ import type { MonitoredSite, NaturalEvent } from '../lib/api'
  * never colour alone.
  */
 const FILL = {
-  emergency: 'background:#d6111e;color:#fff;border-color:#8f0b14',
-  warning: 'background:#ffe2e3;color:#8f0b14;border-color:#d6111e',
-  watch: 'background:#fff;color:#2a0b0e;border-color:#d6111e',
-  none: 'background:#fff;color:#2a0b0e;border-color:#2a0b0e',
+  emergency: 'background:#a8242b;color:#fff;border-color:#7a181d',
+  warning: 'background:#f3e5e6;color:#7a181d;border-color:#a8242b',
+  watch: 'background:#fff;color:#221b1c;border-color:#a8242b',
+  none: 'background:#fff;color:#221b1c;border-color:#221b1c',
 } as const
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)

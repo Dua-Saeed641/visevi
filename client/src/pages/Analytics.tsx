@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { BarList, Donut, DivergingBars, Kpi, Panel, Pill, StackedColumns } from '../components/dash'
+import { BarList, DivergingBars, Kpi, Panel, Pill } from '../components/dash'
 import { levelTone } from '../components/dashTheme'
 import { Loading, Notice, PageHeader } from '../components/ui'
 import { api, signalsApi, type AlertSummary, type Overview, type RiskResponse, type SitesResponse } from '../lib/api'
@@ -118,46 +118,19 @@ export function Analytics() {
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-            <Panel className="xl:col-span-2" title="Alerts over time" description={`Weekly alerts raised across all sites, last ${WEEKS} weeks, by severity.`}>
-              {stats && (
-                <StackedColumns
-                  columns={stats.weekly}
-                  series={[
-                    { label: 'Watch', tone: 'light' },
-                    { label: 'Warning', tone: 'mid' },
-                    { label: 'Emergency', tone: 'solid' },
-                  ]}
-                />
-              )}
-            </Panel>
-            <Panel title="Alerts by hazard" description="All recorded alerts.">
-              {stats && (
-                <Donut
-                  centre={String(alerts?.length ?? 0)}
-                  sub="alerts"
-                  slices={[
-                    { label: 'Heat wave', value: stats.byKind.heatwave, tone: 'solid' },
-                    { label: 'Cold wave', value: stats.byKind.coldwave, tone: 'hatch' },
-                    { label: 'High waves', value: stats.byKind.highwaves, tone: 'light' },
-                  ]}
-                />
-              )}
-            </Panel>
-          </div>
-
+          {/* Key Risk & Anomaly Overview */}
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
             <Panel
               title="Risk index by site"
-              description="0 to 100. A weighted score of long-run exposure, live conditions, the forecast, recent incidents, nearby events and imagery."
+              description="Score from 0 to 100 based on exposure, forecast, and imagery."
               action={<Link to="/report" className="text-base font-bold text-brand hover:underline">Details</Link>}
             >
               {!risk ? (
-                <p className="py-6 text-center text-base text-muted">Computing the risk index. The first run reads NASA hazard maps and can take about 20 seconds.</p>
+                <p className="py-6 text-center text-base text-muted">Computing risk index...</p>
               ) : (
                 <BarList
                   max={100}
-                  rows={risk.sites.slice(0, 10).map((s) => ({
+                  rows={risk.sites.slice(0, 8).map((s) => ({
                     key: s.locationId,
                     label: s.name,
                     value: s.score,
@@ -166,48 +139,29 @@ export function Analytics() {
                   }))}
                 />
               )}
-              <p className="mt-4 text-sm text-muted">Bar length is the score; the label at the right gives the level and how much fresh, sourced data it rests on.</p>
             </Panel>
 
-            <Panel title="Temperature against normal" description="Latest reading minus what is normal for that place, month and hour (ten-year history).">
+            <Panel title="Temperature anomaly" description="Current reading variance from 10-year historical baseline.">
               {sites && (
                 <DivergingBars
                   unit="°C"
                   rows={[...sites.sites]
                     .sort((a, b) => Math.abs(b.latest?.anomalyC ?? 0) - Math.abs(a.latest?.anomalyC ?? 0))
-                    .slice(0, 10)
+                    .slice(0, 8)
                     .map((s) => ({ key: s.locationId, label: s.name, value: s.latest?.anomalyC ?? null }))}
                 />
               )}
-              <p className="mt-4 text-sm text-muted">Solid bars are warmer than normal, hatched bars colder.</p>
             </Panel>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-            <Panel title="Response pipeline" description="For live alerts: capture, confirm, notify.">
-              {stats && stats.pipeline.raised > 0 ? (
-                <BarList
-                  max={stats.pipeline.raised}
-                  rows={[
-                    { key: 'r', label: 'Alerts raised', value: stats.pipeline.raised, tone: 'light' },
-                    { key: 'c', label: 'Satellite captured', value: stats.pipeline.captured, tone: 'mid' },
-                    { key: 'f', label: 'Confirmed by imagery', value: stats.pipeline.confirmed, tone: 'solid' },
-                    { key: 'n', label: 'People notified', value: stats.pipeline.notified, tone: 'hatch' },
-                  ]}
-                />
-              ) : (
-                <p className="py-6 text-base leading-relaxed text-muted">
-                  No live alert yet, so nothing has been through the loop. Send a test signal from <Link to="/watch" className="font-bold text-brand hover:underline">Disaster watch</Link> to see a satellite capture, a confirmation and a notification.
-                </p>
-              )}
-            </Panel>
-
-            <Panel title="Evidence by project" description="Captures per project, split by verification." className="xl:col-span-2">
+          {/* Evidence Verification & Recent Alerts */}
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+            <Panel title="Evidence by project" description="Captures by project, split by verification status.">
               {overview && (
                 <BarList
                   rows={[...overview.perProject]
                     .sort((a, b) => b.verified + b.unverified + b.flagged - (a.verified + a.unverified + a.flagged))
-                    .slice(0, 8)
+                    .slice(0, 6)
                     .map((p) => ({
                       key: p.name,
                       label: p.name,
@@ -221,37 +175,31 @@ export function Analytics() {
                     }))}
                 />
               )}
-              <p className="mt-4 flex flex-wrap gap-x-5 text-sm text-muted">
-                <span>Solid: verified</span><span>Light: unverified</span><span>Hatched: flagged</span>
-              </p>
+            </Panel>
+
+            <Panel title="Recent alerts" description="Latest alert activity." action={<Link to="/watch" className="text-base font-bold text-brand hover:underline">Disaster watch</Link>}>
+              {stats && stats.recent.length === 0 ? (
+                <p className="py-6 text-center text-base text-muted">No active alerts.</p>
+              ) : (
+                <ul className="divide-y divide-line">
+                  {stats?.recent.slice(0, 5).map((a) => (
+                    <li key={a.id}>
+                      <Link to={`/watch?alert=${a.id}`} className="flex flex-wrap items-center justify-between gap-x-4 py-2.5 hover:bg-tint">
+                        <span className="flex min-w-0 items-center gap-2.5">
+                          <Pill tone={levelTone(a.severity)}>{a.severity}</Pill>
+                          <span className="truncate text-base font-bold">{kind(a.type)} at {a.location}</span>
+                        </span>
+                        <span className="flex items-center gap-3 text-sm text-muted">
+                          <span className="font-bold tabular-nums text-ink">{a.latestValue.toFixed(1)} {a.unit}</span>
+                          <span>{when(a.createdAt)}</span>
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </Panel>
           </div>
-
-          <Panel title="Recent alerts" description="Newest first." action={<Link to="/watch" className="text-base font-bold text-brand hover:underline">Open Disaster watch</Link>}>
-            {stats && stats.recent.length === 0 ? (
-              <p className="py-6 text-center text-base text-muted">No alerts yet.</p>
-            ) : (
-              <ul className="divide-y divide-line">
-                {stats?.recent.map((a) => (
-                  <li key={a.id}>
-                    <Link to={`/watch?alert=${a.id}`} className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 py-3 hover:bg-tint">
-                      <span className="flex min-w-0 items-center gap-3">
-                        <Pill tone={levelTone(a.severity)}>{a.severity}</Pill>
-                        <span className="truncate text-lg font-bold">{kind(a.type)} at {a.location}</span>
-                      </span>
-                      <span className="flex items-center gap-4 text-base text-muted">
-                        <span className="font-bold tabular-nums text-ink">{a.latestValue.toFixed(1)} {a.unit}</span>
-                        <span>{when(a.createdAt)}</span>
-                        <span className="capitalize">{a.status}</span>
-                        {a.trigger.source === 'historical-replay' && <Pill tone="outline">History</Pill>}
-                        {a.confirmation?.status === 'confirmed' && <Pill tone="solid">Confirmed</Pill>}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Panel>
         </div>
       )}
     </div>

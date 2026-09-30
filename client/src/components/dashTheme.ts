@@ -1,11 +1,11 @@
 /** Two-tone chart tones shared by the dashboard components. */
 export const TONE = {
-  solid: '#d6111e',
-  mid: '#e8646c',
-  light: '#f6b6ba',
-  pale: '#ffe2e3',
-  ink: '#2a0b0e',
-  dark: '#8f0b14',
+  solid: '#a8242b',
+  mid: '#cc5a61',
+  light: '#e5b3b6',
+  pale: '#f3e5e6',
+  ink: '#221b1c',
+  dark: '#7a181d',
 } as const
 export type Tone = keyof typeof TONE
 

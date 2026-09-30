@@ -4,12 +4,12 @@
  *   Verified = solid red, Unverified = light red, Flagged = white with hatching.
  */
 export const C = {
-  brand: '#d6111e',
-  dark: '#8f0b14',
-  light: '#f6b6ba',
-  ink: '#2a0b0e',
-  muted: '#7a5257',
-  grid: '#efd3d4',
+  brand: '#a8242b',
+  dark: '#7a181d',
+  light: '#e5b3b6',
+  ink: '#221b1c',
+  muted: '#6b5859',
+  grid: '#e2d5d6',
 }
 
 export type Tip = { x: number; y: number; title: string; lines: string[] } | null
