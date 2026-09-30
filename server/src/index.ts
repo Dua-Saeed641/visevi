@@ -2,10 +2,11 @@ import compression from 'compression'
 import cors from 'cors'
 import express, { type ErrorRequestHandler } from 'express'
 import { env } from './env.js'
-import { connectMongo } from './lib/mongo.js'
+import { connectMongo, getDb } from './lib/mongo.js'
 import { assetsRouter } from './routes/assets.js'
 import { healthRouter } from './routes/health.js'
 import { reportsRouter } from './routes/reports.js'
+import { pollSites, signalsRouter } from './routes/signals.js'
 
 async function main() {
   // Connect before accepting requests — fail loudly at startup rather than
@@ -22,6 +23,7 @@ async function main() {
   app.use('/api/health', healthRouter)
   app.use('/api/assets', assetsRouter)
   app.use('/api/reports', reportsRouter)
+  app.use('/api/signals', signalsRouter)
 
   const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     console.error(err)
@@ -33,6 +35,17 @@ async function main() {
   app.listen(env.port, () => {
     console.log(`VisEvi API listening on http://localhost:${env.port}`)
   })
+
+  // Automatic temperature polling: each monitored site is read on a timer and
+  // any threshold breach raises an alert. Off unless configured (see env.ts).
+  if (env.sensorPollMinutes > 0) {
+    const run = () =>
+      pollSites(getDb())
+        .then((r) => console.log(`Sensor poll: ${r.length} site(s), ${r.filter((x) => x.alert).length} with an active alert`))
+        .catch((err) => console.error('Sensor poll failed:', err))
+    setInterval(run, env.sensorPollMinutes * 60_000)
+    void run()
+  }
 }
 
 main().catch((err) => {

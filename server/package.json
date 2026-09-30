@@ -6,9 +6,13 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "seed:india": "tsx src/scripts/seedIndiaData.ts",
+    "seed:sites": "tsx src/scripts/seedSites.ts",
+    "replay": "tsx src/scripts/replay.ts",
+    "backfill:capture": "tsx src/scripts/backfillCapture.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "seed": "tsx seed/seed.ts",
+    "seed:satellite": "tsx seed/satellite.ts",
     "test:e2e": "tsx test/e2e.mts"
   },
   "keywords": [],
@@ -24,6 +28,7 @@
     "express": "^5.2.1",
     "mongodb": "^7.7.0",
     "multer": "^2.4.0",
+    "nodemailer": "^10.0.13",
     "sharp": "^0.35.5"
   },
   "devDependencies": {
@@ -32,6 +37,7 @@
     "@types/express": "^5.0.6",
     "@types/multer": "^2.2.0",
     "@types/node": "^26.6.3",
+    "@types/nodemailer": "^8.0.2",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3"
   },

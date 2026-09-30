@@ -1,6 +1,7 @@
 import { conceptLabel, conceptsOf, observationText, stem, tokenize } from './lexicon.js'
 import { DUPLICATE_THRESHOLD, HASH_BITS, hammingDistance } from './phash.js'
 import type { AssetDocument } from './models.js'
+import type { PixelChange } from './pixels.js'
 
 /**
  * Before/after comparison. Every statement here is derived from data we hold and
@@ -25,9 +26,14 @@ export interface CompareContext {
   sameLocation: boolean
   beforeProject?: string
   afterProject?: string
+  /** Both images are satellite views of the same coordinates and extent (from capture
+   * metadata, not guessed from pixels), so they are the same place by construction. */
+  sameFootprint?: boolean
+  /** Measured change between two same-footprint images, if it could be computed. */
+  pixels?: PixelChange | null
 }
 
-export type SceneTier = 'same-photo' | 'similar' | 'different' | 'unrelated' | 'unknown'
+export type SceneTier = 'same-footprint' | 'same-photo' | 'similar' | 'different' | 'unrelated' | 'unknown'
 
 /*
  * Fingerprint distance (of 256 bits), calibrated on the seeded library:
@@ -54,6 +60,13 @@ export interface ChangeDescription {
   themes: { shared: string[]; onlyBefore: string[]; onlyAfter: string[] }
   objects: { shared: string[]; onlyBefore: string[]; onlyAfter: string[] }
   overlap: { themes: number | null; objects: number | null; tags: number | null }
+  /** Pixel measurements for same-footprint pairs; null when not applicable. */
+  visual: {
+    measured: PixelChange
+    lines: string[]
+    /** Set when the two dates are in different seasons, which makes raw change misleading. */
+    seasonNote: string | null
+  } | null
   /** Ordered, self-contained statements. */
   insights: string[]
   /** Things the reader must keep in mind before drawing a conclusion. */
@@ -159,7 +172,40 @@ export function describeChange(before: NarrativeAsset, after: NarrativeAsset, ct
     time = { basis: 'unavailable', diffDays: null, label: 'Not recorded', beforeDate: bd ? fmtDate(bd) : null, afterDate: ad ? fmtDate(ad) : null }
   }
 
-  const scene = sceneOf(before, after)
+  const scene: ChangeDescription['scene'] = ctx.sameFootprint
+    ? {
+        tier: 'same-footprint',
+        distance: null,
+        bits: HASH_BITS,
+        text: 'Same place: both images are NASA satellite views of the same coordinates and extent, so they line up exactly. Any difference below is real change or a change of season, not a different viewpoint.',
+      }
+    : sceneOf(before, after)
+
+  // Measured change (same-footprint pairs only).
+  let visual: ChangeDescription['visual'] = null
+  if (ctx.sameFootprint && ctx.pixels) {
+    const p = ctx.pixels
+    const lines: string[] = []
+    lines.push(
+      p.commonClearPct < 50
+        ? `Only ${Math.round(p.commonClearPct)}% of the frame is clear (cloud-free) in both images, too little to compare reliably.`
+        : `${Math.round(p.commonClearPct)}% of the frame is clear (cloud-free) in both images, so the comparison below rests on that ground.`,
+    )
+    const dg = p.after.green - p.before.green
+    if (Math.abs(dg) >= 0.03) lines.push(`Vegetation greenness ${dg > 0 ? 'rose' : 'fell'} (index ${p.before.green.toFixed(2)} to ${p.after.green.toFixed(2)}): the ground looks ${dg > 0 ? 'greener' : 'drier and browner'}.`)
+    else lines.push(`Vegetation greenness is about the same (index ${p.before.green.toFixed(2)} and ${p.after.green.toFixed(2)}).`)
+    const dw = p.after.waterPct - p.before.waterPct
+    if (Math.abs(dw) >= 4) lines.push(`Water-like area ${dw > 0 ? 'grew' : 'shrank'} from ${Math.round(p.before.waterPct)}% to ${Math.round(p.after.waterPct)}% of the clear ground.`)
+    if (Math.max(p.before.cloudPct, p.after.cloudPct) >= 8) lines.push(`Cloud covered ${Math.round(p.before.cloudPct)}% of the before image and ${Math.round(p.after.cloudPct)}% of the after image; cloud hides ground and is excluded from these figures.`)
+    let seasonNote: string | null = null
+    if (time.diffDays !== null && time.diffDays >= 60) {
+      const yr = 365.25
+      const off = Math.abs(((time.diffDays % yr) + yr) % yr)
+      const gap = Math.min(off, yr - off)
+      if (gap > 45) seasonNote = `These dates are about ${Math.round(gap / 30.4)} months out of step with a whole number of years, so part of the difference is the season, not lasting change. A same-season pair (a year or more apart) isolates real change better.`
+    }
+    visual = { measured: p, lines, seasonNote }
+  }
 
   // Themes (recognised concepts).
   const tb = new Map(conceptsOf(observationText(b)).map((c) => [c.conceptId, c]))
@@ -239,7 +285,13 @@ export function describeChange(before: NarrativeAsset, after: NarrativeAsset, ct
   if (scene.tier === 'same-photo') reasons.push('identical photo')
   if (scene.tier === 'unrelated') reasons.push('visually unrelated')
   if (scene.tier === 'different') reasons.push('large visual difference')
-  caveats.push('Descriptions come from one AI pass per image and can vary between passes, so a missing label is not proof that something was removed or built. No quantities (area, counts, percent cover) are measured.')
+  if (visual?.seasonNote) reasons.push('different seasons')
+  if (visual && visual.measured.commonClearPct < 50) reasons.push('too cloudy to measure')
+  caveats.push(
+    visual
+      ? 'Colour and vegetation figures are approximations from true-colour satellite imagery at about 250 m per pixel: they show direction and rough size, not survey-grade area. Descriptions come from one AI pass per image and can vary.'
+      : 'Descriptions come from one AI pass per image and can vary between passes, so a missing label is not proof that something was removed or built. No quantities (area, counts, percent cover) are measured.',
+  )
 
   // Comparability verdict.
   const hard = scene.tier === 'same-photo' || (scene.tier === 'unrelated' && !ctx.sameProject) || !b || !a
@@ -259,6 +311,10 @@ export function describeChange(before: NarrativeAsset, after: NarrativeAsset, ct
       ? `Captured ${time.beforeDate} and ${time.afterDate}: ${time.label} apart.`
       : 'The interval between captures cannot be stated because a capture date is missing.',
   )
+  if (visual) {
+    insights.push(...visual.lines)
+    if (visual.seasonNote) insights.push(visual.seasonNote)
+  }
   if (b && a) {
     insights.push(activity.text)
     if (themes.shared.length) insights.push(`Themes detected in both images: ${list(themes.shared)}.`)
@@ -286,11 +342,13 @@ export function describeChange(before: NarrativeAsset, after: NarrativeAsset, ct
     themes,
     objects,
     overlap,
+    visual,
     insights,
     caveats,
     narrative: [headline, ...insights].join(' '),
-    method:
-      'Capture dates as recorded; framing from a 256-bit perceptual fingerprint (thresholds calibrated on real image pairs); content from Cloudinary AI Vision observations reduced to recognised themes and object head-nouns. Nothing is measured.',
+    method: visual
+      ? 'Same place established from capture metadata (identical NASA Worldview coordinates and extent). Change measured pixel by pixel on the two images with cloud and no-data masked out; content from Cloudinary AI Vision observations reduced to recognised themes and object head-nouns.'
+      : 'Capture dates as recorded; framing from a 256-bit perceptual fingerprint (thresholds calibrated on real image pairs); content from Cloudinary AI Vision observations reduced to recognised themes and object head-nouns. Nothing is measured.',
     timeSpanLabel: time.label,
     diffDays: time.diffDays,
   }

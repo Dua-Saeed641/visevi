@@ -28,6 +28,9 @@ async function ensureIndexes(database: Db): Promise<void> {
   await database.collection('assets').createIndex({ projectId: 1 })
   await database.collection('assets').createIndex({ locationId: 1 })
   await database.collection('assets').createIndex({ perceptualHash: 1 })
+  await database.collection('readings').createIndex({ locationId: 1, observedAt: -1 })
+  await database.collection('alerts').createIndex({ locationId: 1, type: 1, status: 1 })
+  await database.collection('alerts').createIndex({ createdAt: -1 })
 }
 
 /** Throws if connectMongo() hasn't run yet — mirrors env.ts's fail-fast style. */

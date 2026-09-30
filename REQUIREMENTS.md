@@ -197,6 +197,38 @@ exactly which assets back it) applied to reporting instead of individual
 assets — a judge clicking into "SDG 13.1" should land on the 19 actual
 before-photos, not a black box.
 
+## USP: Sensor-Triggered Disaster Watch
+
+The third differentiator, and the headline one. The other two make uploaded
+media trustworthy; this one makes VisEvi **act before anyone uploads anything**.
+
+```
+TEMPERATURE SIGNAL   Google Maps Platform Weather API (or Open-Meteo, or a
+      |              physical sensor POSTing to /api/signals/ingest)
+THRESHOLD CHECK      heat / cold wave: watch, warning, emergency
+      |
+ALERT                one live alert per site and hazard; escalates in place
+      |
+CLOUDINARY EVIDENCE  the site's earliest vs latest capture, compared by the
+      |              same engine as the Before / after page
+INSIGHTS             corroboration by imagery, age of evidence, change
+      |              description, priority (monitor / respond / escalate)
+RESPONSE             one-URL Cloudinary before/after board with the reading
+                     stamped on it, suggested checklist, field-capture loop
+```
+
+How it uses Cloudinary beyond storage: the alert's evidence board is a single
+delivery URL built from chained transformations (fill, canvas pad, two image
+layers, three text overlays) over the original assets, so it is generated on
+demand, stores nothing new, and every layer traces to a source `public_id` and
+version. The comparison and corroboration read Cloudinary AI Vision
+observations.
+
+Honest boundaries (also in README): thresholds are IMD-style absolutes for
+tropical/subtropical plains and are not applied above 38 degrees latitude;
+corroboration is a lexicon match; the checklist is generic; nothing
+auto-resolves.
+
 ## Design Specifications (from problem-owner's own analysis)
 
 These come directly from notes the problem owner wrote while analyzing the

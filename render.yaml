@@ -18,5 +18,17 @@ services:
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
+      - key: GOOGLE_MAPS_API_KEY   # optional: Weather API key for live temperature
+        sync: false
+      - key: SENSOR_WEBHOOK_SECRET # optional: shared secret for physical sensors
+        sync: false
+      - key: CLIENT_URL            # the deployed client, so notifications link to alerts
+        sync: false
+      - key: SMTP_HOST             # optional: email delivery for notifications
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
       - key: CORS_ORIGIN   # the deployed client origin, e.g. https://visevi.netlify.app
         sync: false

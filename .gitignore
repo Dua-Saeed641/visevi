@@ -37,3 +37,4 @@ server/prisma/*.db
 *.local
 
 MILESTONES.md
+server/seed/.satellite-state.json

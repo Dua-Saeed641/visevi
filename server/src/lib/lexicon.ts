@@ -39,6 +39,9 @@ export const CONCEPTS: Concept[] = [
   { id: 'forest-cover', label: 'Forest cover & land use', terms: ['forest', 'forests', 'deforestation', 'deforested', 'rainforest', 'canopy', 'logging', 'amazon', 'jungle', 'woodland', 'vegetation', 'fishbone'] },
   { id: 'glacier-ice', label: 'Glaciers & ice', terms: ['glacier', 'glaciers', 'glacial', 'ice', 'icefield', 'iceberg', 'snowfield', 'snow', 'moraine', 'meltwater', 'icecap'] },
   { id: 'water-body', label: 'Water bodies (lakes, rivers, seas)', terms: ['lake', 'lakes', 'sea', 'shoreline', 'basin', 'desiccation', 'seabed', 'reservoir', 'waterbody', 'river', 'rivers', 'wetland', 'drought'] },
+  { id: 'heat-drought', label: 'Heat & drought signs', terms: ['drought', 'dry', 'dried', 'parched', 'cracked', 'arid', 'barren', 'scorched', 'wilted', 'desert', 'dust', 'dusty', 'heatwave', 'bare'] },
+  { id: 'coastal-surge', label: 'Waves & storm surge', terms: ['wave', 'waves', 'surf', 'swell', 'surge', 'tide', 'tidal', 'breaker', 'breakers', 'seawall', 'inundation', 'flooded', 'storm'] },
+  { id: 'wildfire', label: 'Fire & smoke', terms: ['fire', 'wildfire', 'smoke', 'burnt', 'burned', 'ash', 'blaze', 'flame', 'flames'] },
   { id: 'flood-climate', label: 'Climate resilience', terms: ['flood', 'floods', 'embankment', 'resilience', 'climate', 'drought', 'erosion', 'seawall', 'storm'] },
 ]
 

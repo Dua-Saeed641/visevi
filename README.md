@@ -68,6 +68,16 @@ VISUAL REPORT              campaign-ready summary + verified-activity counts
 
 ## What Makes VisEvi Different
 
+**Headline USP: sensor-triggered disaster watch.** VisEvi does not wait for
+someone to upload a photo. Live temperature at each monitored site (Google Maps
+Platform Weather API, or any sensor posting to the intake endpoint) is watched
+for heat and cold waves. A breach raises an alert, and VisEvi then uses its
+Cloudinary evidence pipeline to compare the site's earliest and latest
+captures, check whether the imagery corroborates the sensor, and produce a
+one-URL Cloudinary before/after board with the reading stamped on it, plus a
+suggested response checklist. See
+[REQUIREMENTS.md § USP](REQUIREMENTS.md#usp-sensor-triggered-disaster-watch).
+
 The problem statement names three pain points — organizing, analyzing,
 **verifying** — but most teams will only build the first two. VisEvi treats
 verification as a first-class feature, not an afterthought:
@@ -155,6 +165,19 @@ configure:
 - `DATABASE_URL` — a MongoDB Atlas connection string, database name included
   in the path (e.g. `mongodb+srv://user:pass@cluster.mongodb.net/visevi`)
 
+Optional, for the disaster watch:
+
+- `GOOGLE_MAPS_API_KEY` — Google Maps Platform key with the **Weather API**
+  enabled. Without it, temperature falls back to Open-Meteo (keyless) and the
+  UI says which provider answered.
+- `SENSOR_POLL_MINUTES` — automatic poll interval (default 15 with a Google
+  key, otherwise off; "Check sensors now" always works).
+- `SENSOR_WEBHOOK_SECRET` — if set, `POST /api/signals/ingest` from a physical
+  sensor must send it as an `x-sensor-key` header.
+
+To make existing locations monitored sites, run `npm run seed:sites` in
+`server/` (or enter latitude/longitude when uploading).
+
 ## What's Built
 
 Verified end-to-end against real Cloudinary and MongoDB Atlas accounts.
@@ -178,6 +201,85 @@ Verified end-to-end against real Cloudinary and MongoDB Atlas accounts.
   understood as.
 - **Views:** dashboard with analytics charts, timeline per project/location,
   Evidence Graph (photos as nodes, search-to-zoom), printable impact report.
+- **Disaster watch (USP):** monitored sites (locations with coordinates) →
+  live temperature (Google Maps Platform Weather API, Open-Meteo fallback, or
+  sensor webhook) → threshold check → alert (one live alert per site and
+  hazard, escalated in place) → assessment computed from the site's evidence:
+  Cloudinary before/after board, change description, visual corroboration,
+  staleness of imagery, priority and a suggested response checklist. Alerts
+  can be acknowledged and resolved. The Disaster watch page also has a signal
+  simulator that uses the same intake as a real sensor.
+- **Maps (free, keyless):** an interactive Leaflet map of all monitored sites
+  with temperature markers (OpenStreetMap tiles), a per-alert location map, and
+  place-name to coordinates lookup on upload (OpenStreetMap Nominatim, run
+  server-side with a User-Agent, 1 request/second and caching per its usage
+  policy). Attribution is shown wherever OSM data appears. The site map has
+  switchable NASA GIBS overlays (free, no key): live land temperature day and
+  night (hot and cold zones), rainfall rate and soil moisture, plus
+  historical disaster-prone zones (drought, flood, cyclone, landslide, from
+  NASA SEDAC Natural Disaster Hotspots). Live layers are satellite
+  observations one to five days behind, with gaps under cloud; the
+  prone-zone layers are historical maps, not forecasts. Layer availability
+  was checked against GIBS (which serves blank tiles for missing dates). The public tile
+  server is for light use; put a tile provider in front of it before heavy
+  production traffic.
+- **Automatic response loop:** when a live alert is raised or escalates, the
+  server fetches a fresh NASA Worldview snapshot of the site (skipping cloudy
+  or no-data days), pushes it through the normal Cloudinary pipeline, compares
+  it with the same season a year earlier, and records whether the imagery
+  **confirms**, **does not confirm**, or is **inconclusive**. Confirmed alerts,
+  and emergencies (which should not wait for a satellite pass), notify the
+  responsible contacts by email (any SMTP server) and/or free ntfy.sh push,
+  with an in-app record of every message. Every step is stored on the alert.
+- **Provenance verification:** satellite images have no uploader "claim" to
+  test, so they are verified by provenance. The server re-requests the same
+  snapshot from NASA and only marks the upload verified if it matches (a genuine
+  snapshot matches exactly; a fake presented as NASA is flagged).
+- **Same-place comparison:** two NASA snapshots of the same coordinates are the
+  same place by construction (from capture metadata, not guessed from a coarse
+  fingerprint, which cannot tell "same place, different season" from
+  "different place"). The comparison then measures vegetation greenness,
+  water-like area and cloud cover with cloud masked out, and prefers a
+  same-season pair. A "share of ground changed" figure was tried and dropped:
+  on real pairs it did not separate the same site a year apart from unrelated
+  sites, so reporting it would have looked precise without being so.
+- **Risk index (0 to 100) with confidence:** a transparent weighted formula,
+  not a trained model, over six sourced factors: long-run exposure (NASA
+  hazard maps, decoded at the site's coordinates), live conditions, 7-day
+  outlook, recent incidents, nearby NASA events, and hazard signs in the
+  site's Cloudinary-analysed imagery. Weights are 25/20/20/15/10/10 and are
+  returned with every result; an unavailable factor is dropped, never counted
+  as safe. Confidence is a separate weighted trust in each factor (freshness,
+  coverage, evidence count).
+- **Smarter triggers:** an alert fires when a reading is unusual *for that
+  place, month and hour* (compared with ten years of Open-Meteo archive
+  history, cached per site), or crosses a fixed limit, or when coastal waves
+  (Open-Meteo Marine) reach 2.5 m or more. Anomaly-only alerts need a
+  stressful absolute temperature and cannot exceed "warning"; "emergency"
+  needs a real threshold. So heat/cold alerts work worldwide, not only on
+  Indian plains.
+- **Live events:** NASA EONET open events (storms, floods, volcanoes, heat
+  extremes, and wildfires near monitored sites) are drawn on the map and
+  listed on an alert when they are within 300 km and relevant to its hazard.
+- **Contacts:** `POST /api/signals/contacts` (or the Disaster watch page) sets
+  who is told, per site and from which severity up. ntfy needs no account:
+  install the ntfy app and subscribe to a hard-to-guess topic name.
+- **Bulk demo data:** `npm run seed:satellite` (in `server/`) uploads dated
+  NASA Worldview satellite snapshots for 13 hazard-relevant sites through the
+  real upload API, screening out cloud and no-data passes. Use `--dry-run`,
+  `--only <site>`, `--per-site N`, `--clean`. Each upload spends one
+  Cloudinary AI analysis. Project names are deliberately neutral because
+  verification treats a project name as a claim about its media.
+- **Historical replay:** `npm run replay` (in `server/`) feeds real hourly
+  ERA5 history (Open-Meteo archive, free) through the same alert engine and
+  records dated, resolved incidents: a heat or cold wave closes after 48 quiet
+  hours, a wave alert after 12. Defaults to 1 Apr to 30 Jun 2026; try
+  `-- --from 2024-05-15 --to 2024-06-05` for the May 2024 heat wave (Barmer
+  48 C). `--dry-run` lists incidents without writing, `--only <site>`,
+  `--clean` removes only replayed data. A closed alert cites only evidence
+  captured before it closed. Caveats: a period inside the ten-year baseline is
+  part of its own "normal", and a fixed 37 C "watch" is met almost daily in a
+  Rajasthan summer, so such an incident can last weeks.
 - **Traceability:** each asset's record shows its Cloudinary public ID,
   version and transformation history.
 
@@ -192,6 +294,25 @@ Verified end-to-end against real Cloudinary and MongoDB Atlas accounts.
 - Assets uploaded before the verification layer was added have no perceptual
   hash and can't be duplicate-matched.
 - No authentication or per-organisation access control.
+- Hazard thresholds are absolute and calibrated for India-like plains
+  (heat >= 40 C, cold <= 4 C, following IMD criteria). Sites beyond 38 degrees
+  of latitude record readings but never raise alerts, because a fixed cold
+  threshold would fire on an ordinary day in Alaska. They are a starting point
+  for an operator's own SOP, not an official warning.
+- Visual corroboration is a lexicon match on Cloudinary AI Vision output
+  (dry, cracked, parched, smoke, snow and similar words), so "uncorroborated"
+  often just means the imagery predates the event. The response checklist is
+  generic guidance, not a substitute for official procedure.
+- Alerts are never auto-resolved when the temperature falls; a person closes
+  them.
+- Satellite views are MODIS true colour at about 250 m per pixel: they show
+  drying, snow and gross water change, not waves, cold, or street-level damage.
+  Confirmation is therefore often "inconclusive" or "not confirmed", by design.
+- Hazard exposure comes from NASA SEDAC maps of 1980 to 2003, on a global scale
+  (Bay of Bengal cyclones sit low on a scale dominated by West Pacific
+  typhoons), so it describes long-run concentration, not today.
+- The risk index weights are judgement. It has not been validated against
+  recorded disaster outcomes.
 
 ## Testing
 

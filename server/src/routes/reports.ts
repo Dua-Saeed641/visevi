@@ -5,6 +5,7 @@ import { INDICATORS, mapIndicators } from '../lib/indicators.js'
 import { conceptLabel, conceptsOf, observationText } from '../lib/lexicon.js'
 import { getDb } from '../lib/mongo.js'
 import { describeChange } from '../lib/narrative.js'
+import { measureFootprint } from '../lib/compare.js'
 import type { AssetDocument, LocationDocument, ProjectDocument } from '../lib/models.js'
 
 export const reportsRouter = Router()
@@ -28,6 +29,7 @@ function serializeSide(
     verificationStatus: asset.verificationStatus,
     createdAt: (asset.capturedAt ?? asset.createdAt).toISOString(),
     observation: asset.observation,
+    capture: asset.capture ?? null,
   }
 }
 
@@ -36,6 +38,34 @@ async function projectAndLocation(db: Db, asset: AssetDocument) {
     db.collection<ProjectDocument>('projects').findOne({ _id: asset.projectId }),
     asset.locationId ? db.collection<LocationDocument>('locations').findOne({ _id: asset.locationId }) : null,
   ])
+}
+
+const DAY = 86_400_000
+
+/**
+ * The most meaningful before/after pair among assets of ONE site: a pair a year
+ * (or whole years) apart is the same season, so it shows lasting change rather
+ * than the calendar; among those, the longest span wins. If no same-season pair
+ * exists it falls back to the earliest and latest. `assets` must be one site,
+ * sorted by time.
+ */
+function bestPair(assets: AssetDocument[]) {
+  let best: { a: AssetDocument; b: AssetDocument; spanDays: number; sameSeason: boolean } | null = null
+  for (let i = 0; i < assets.length; i++) {
+    for (let j = i + 1; j < assets.length; j++) {
+      const spanDays = (when(assets[j]) - when(assets[i])) / DAY
+      const off = ((spanDays % 365.25) + 365.25) % 365.25
+      const sameSeason = spanDays >= 300 && Math.min(off, 365.25 - off) <= 45
+      const better = !best || (sameSeason && !best.sameSeason) || (sameSeason === best.sameSeason && sameSeason && spanDays > best.spanDays)
+      if (better) best = { a: assets[i], b: assets[j], spanDays, sameSeason }
+    }
+  }
+  if (best && !best.sameSeason && assets.length >= 2) {
+    const a = assets[0]
+    const b = assets[assets.length - 1]
+    best = { a, b, spanDays: (when(b) - when(a)) / DAY, sameSeason: false }
+  }
+  return best
 }
 
 /**
@@ -77,11 +107,16 @@ reportsRouter.get('/compare', async (req, res, next) => {
     const [before, after] = when(a) <= when(b) ? [a, b] : [b, a]
     const [[bp, bl], [ap, al]] = await Promise.all([projectAndLocation(db, before), projectAndLocation(db, after)])
 
+    // Same footprint is a fact from capture metadata (see lib/compare.ts); only then is a
+    // pixel-by-pixel comparison valid.
+    const { sameFootprint, pixels } = await measureFootprint(before, after)
     const change = describeChange(before, after, {
       sameProject: before.projectId.equals(after.projectId),
       sameLocation: !!before.locationId && !!after.locationId && before.locationId.equals(after.locationId),
       beforeProject: bp?.name,
       afterProject: ap?.name,
+      sameFootprint,
+      pixels,
     })
     res.json({
       before: serializeSide(before, bp, bl),
@@ -143,12 +178,33 @@ reportsRouter.get('/project/:projectId', async (req, res, next) => {
       }
     }
 
-    // Before/after showcase: earliest vs latest non-flagged, analysed asset.
+    // Suggested pairs and the featured before/after: per site, the best same-season pair.
     const usable = assets.filter((a) => a.verificationStatus !== 'FLAGGED')
+    const suggestedPairs = locations
+      .map((loc) => {
+        const here = usable.filter((a) => a.locationId?.equals(loc._id))
+        const pair = here.length >= 2 ? bestPair(here) : null
+        if (!pair) return null
+        return {
+          location: loc.name,
+          beforeId: pair.a._id.toHexString(),
+          afterId: pair.b._id.toHexString(),
+          beforeUrl: pair.a.cloudinaryUrl,
+          afterUrl: pair.b.cloudinaryUrl,
+          spanDays: Math.round(pair.spanDays),
+          sameSeason: pair.sameSeason,
+          pair,
+        }
+      })
+      .filter((p): p is NonNullable<typeof p> => p !== null)
+
+    // Featured: the site whose pair is same-season and longest.
+    const featured = [...suggestedPairs].sort((x, y) => Number(y.sameSeason) - Number(x.sameSeason) || y.spanDays - x.spanDays)[0]
     let beforeAfter = null
-    if (usable.length >= 2) {
-      const first = usable[0]
-      const last = usable[usable.length - 1]
+    if (featured) {
+      const first = featured.pair.a
+      const last = featured.pair.b
+      const m = await measureFootprint(first, last)
       beforeAfter = {
         beforeId: first._id.toHexString(),
         afterId: last._id.toHexString(),
@@ -156,30 +212,17 @@ reportsRouter.get('/project/:projectId', async (req, res, next) => {
         beforeDate: (first.capturedAt ?? first.createdAt).toISOString(),
         afterUrl: last.cloudinaryUrl,
         afterDate: (last.capturedAt ?? last.createdAt).toISOString(),
+        sameSeason: featured.sameSeason,
         summary: describeChange(first, last, {
           sameProject: true,
           sameLocation: !!first.locationId && !!last.locationId && first.locationId.equals(last.locationId),
           beforeProject: project.name,
           afterProject: project.name,
+          sameFootprint: m.sameFootprint,
+          pixels: m.pixels,
         }),
       }
     }
-
-    // Suggested pairs: per location, earliest vs latest usable asset.
-    const suggestedPairs = locations
-      .map((loc) => {
-        const here = usable.filter((a) => a.locationId?.equals(loc._id))
-        if (here.length < 2) return null
-        return {
-          location: loc.name,
-          beforeId: here[0]._id.toHexString(),
-          afterId: here[here.length - 1]._id.toHexString(),
-          beforeUrl: here[0].cloudinaryUrl,
-          afterUrl: here[here.length - 1].cloudinaryUrl,
-          spanDays: Math.round((when(here[here.length - 1]) - when(here[0])) / 86_400_000),
-        }
-      })
-      .filter((p): p is NonNullable<typeof p> => p !== null)
 
     const indicators = mapIndicators(assets)
 
@@ -202,7 +245,7 @@ reportsRouter.get('/project/:projectId', async (req, res, next) => {
       activities: Object.entries(activityCounts).map(([name, v]) => ({ name, count: v.count, verified: v.verified })),
       indicators,
       beforeAfter,
-      suggestedPairs,
+      suggestedPairs: suggestedPairs.map(({ pair: _pair, ...rest }) => rest),
       timeline: assets.map((a) => ({
         id: a._id.toHexString(),
         cloudinaryUrl: a.cloudinaryUrl,

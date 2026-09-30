@@ -236,3 +236,41 @@ export function videoPosterUrl(videoUrl: string): string {
     .replace('/video/upload/', '/video/upload/so_1/')
     .replace(/\.[a-z0-9]+$/i, '.jpg')
 }
+
+export interface BoardSide {
+  publicId: string
+  version: string
+  /** Short label burned into the image, e.g. "BEFORE 14 Mar 2024". */
+  label: string
+}
+
+/**
+ * One Cloudinary delivery URL that renders a before | after board with the
+ * triggering temperature stamped on it — composed entirely by chained
+ * transformations (fill/pad canvas, two image layers, text overlays), so
+ * nothing new is stored and every layer is a traceable source asset.
+ */
+export function evidenceBoardUrl(before: BoardSide, after: BoardSide, badge: string): string {
+  const w = 640
+  const h = 420
+  // A text layer is two components: the layer definition, then where it lands.
+  const text = (t: string, size: number, background: string, place: Record<string, unknown>) => [
+    { overlay: { font_family: 'Helvetica', font_size: size, font_weight: 'bold', text: t }, color: 'white', background },
+    { flags: 'layer_apply', ...place },
+  ]
+  return client().url(before.publicId, {
+    version: before.version,
+    secure: true,
+    resource_type: 'image',
+    transformation: [
+      { width: w, height: h, crop: 'fill', gravity: 'auto' },
+      { width: w * 2, height: h, crop: 'pad', gravity: 'west', background: 'white' },
+      { overlay: after.publicId.replaceAll('/', ':'), width: w, height: h, crop: 'fill', gravity: 'auto' },
+      { flags: 'layer_apply', gravity: 'east' },
+      ...text(before.label, 26, '#2a0b0e', { gravity: 'south_west', x: 16, y: 16 }),
+      ...text(after.label, 26, '#2a0b0e', { gravity: 'south_east', x: 16, y: 16 }),
+      ...text(badge, 44, '#d6111e', { gravity: 'north', y: 16 }),
+      { quality: 'auto', fetch_format: 'auto' },
+    ],
+  })
+}

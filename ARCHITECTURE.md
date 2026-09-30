@@ -114,6 +114,30 @@ All three write into fields the `Asset` document already has (see
 `server/src/lib/models.ts`) — no separate service, just population logic and
 one extra server-side step per upload.
 
+## Sensor-Triggered Disaster Watch
+
+Implemented in `server/src/routes/signals.ts`, `lib/weather.ts` and
+`lib/hazards.ts`; UI in `client/src/pages/Watch.tsx`.
+
+- **Monitored site** = a `locations` document with `lat`/`lng` (set at upload,
+  via `PUT /api/signals/sites/:id`, or `npm run seed:sites`).
+- **Signal intake**: three ways in, all through `recordReading()`. The timer
+  (`SENSOR_POLL_MINUTES`) and `POST /poll` call `fetchCurrentWeather` (Google
+  Maps Platform Weather API `currentConditions:lookup`, falling back to
+  Open-Meteo; the stored `source` is whichever provider actually answered), and
+  `POST /ingest` accepts a sensor or the demo simulator.
+- **Rules**: `evaluateTemperature(tempC, lat)` in `lib/hazards.ts`: named
+  thresholds per hazard and severity, gated to `|lat| <= 38`.
+- **Alerts**: collection `alerts`; at most one non-resolved alert per site and
+  hazard. A repeat breach updates it (peak, latest, count); a more severe one
+  escalates it and re-opens an acknowledged alert.
+- **Assessment**: `GET /api/signals/alerts/:id` computes on read from the
+  site's assets, so new uploads change it immediately: `describeChange`
+  (the existing comparison engine) on first vs latest capture, `corroborate`
+  (lexicon match of AI observations to the hazard), evidence age, priority, the
+  checklist, and `evidenceBoardUrl` (Cloudinary composite URL).
+- **Collections added:** `readings` (history) and `alerts`.
+
 ## Impact Indicator Mapping
 
 Second differentiator (full rationale in

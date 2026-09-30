@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>VisEvi - CODESLAYER 2k26 - DevSphereIndia</title>
+<style>
+  /* Fonts: Qurova for the wordmark and slide titles (h1), Valentine for sub-headings, Helvetica elsewhere. */
+  @font-face { font-family: "Qurova"; src: url("../../client/public/fonts/qurova.otf") format("opentype"); }
+  @font-face { font-family: "Valentine"; src: url("../../client/public/fonts/valentine.otf") format("opentype"); }
+  @page { size: 1280px 720px; margin: 0; }
+  :root { --brand: #d6111e; --dark: #8f0b14; --ink: #2a0b0e; --muted: #7a5257; --tint: #fff5f5; --tint2: #ffe2e3; --line: #efd3d4; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #fff; color: var(--ink); font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .slide { position: relative; width: 1280px; height: 720px; overflow: hidden; page-break-after: always; break-after: page; background: #fff; }
+  .slide:last-child { page-break-after: auto; break-after: auto; }
+
+  /* Title bar: identical on every slide */
+  .bar { position: absolute; inset: 0 0 auto 0; height: 58px; background: var(--brand); color: #fff; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 0 36px; }
+  .bar .brand { display: flex; align-items: center; gap: 12px; font-family: "Qurova", sans-serif; font-size: 26px; }
+  .bar .brand img { height: 26px; width: auto; }
+  .bar .team { font-size: 15px; font-weight: 700; letter-spacing: 0.04em; }
+  .bar .event { justify-self: end; font-size: 14px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+  .foot { position: absolute; left: 36px; right: 36px; bottom: 12px; display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+
+  .body { position: absolute; left: 36px; right: 36px; top: 78px; bottom: 34px; }
+  h1 { font-family: "Qurova", sans-serif; font-weight: 400; margin: 0; }
+  h2 { font-family: "Valentine", serif; font-weight: 400; margin: 0; font-size: 38px; line-height: 1; }
+  h3 { font-family: "Valentine", serif; font-weight: 400; margin: 0 0 8px; font-size: 24px; line-height: 1.05; }
+  .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--brand); margin-bottom: 6px; }
+  .slide-title { display: flex; align-items: baseline; justify-content: space-between; border-bottom: 3px solid var(--ink); padding-bottom: 10px; margin-bottom: 16px; }
+  .slide-title .n { font-size: 13px; font-weight: 700; color: var(--muted); letter-spacing: 0.12em; }
+  ul { margin: 0; padding-left: 18px; }
+  li { margin: 0 0 5px; font-size: 15px; line-height: 1.32; }
+  li::marker { color: var(--brand); }
+  .muted { color: var(--muted); }
+  .small { font-size: 12.5px; line-height: 1.35; }
+  .card { border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 14px 16px; }
+  .card.tint { background: var(--tint); }
+  .chip { display: inline-block; border: 2px solid var(--brand); color: var(--brand); border-radius: 999px; padding: 3px 12px; font-size: 13px; font-weight: 700; margin: 0 6px 6px 0; }
+  .chip.on { background: var(--brand); color: #fff; }
+  .num { font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; color: var(--brand); line-height: 1; }
+  .grid { display: grid; gap: 14px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); border-bottom: 2px solid var(--ink); padding: 5px 8px 5px 0; }
+  td { font-size: 13px; line-height: 1.3; vertical-align: top; padding: 6px 8px 6px 0; border-bottom: 1px solid var(--line); }
+  td b { color: var(--ink); }
+  .step { display: flex; gap: 10px; }
+  .step .b { flex: 0 0 26px; height: 26px; border-radius: 50%; background: var(--brand); color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+  .step p { margin: 0; font-size: 13.5px; line-height: 1.3; }
+  .step p b { display: block; font-size: 14.5px; margin-bottom: 1px; }
+  a { color: inherit; text-decoration: none; }
+  .s2 li { font-size: 16.5px; margin-bottom: 8px; }
+  .s2 .small { font-size: 14px; }
+  .s2 .num { white-space: nowrap; }
+  .s3 .step p { font-size: 14.8px; }
+  .s3 .step p b { font-size: 16px; }
+  .s3 td { font-size: 14.2px; }
+  .s3 li { font-size: 15.6px; margin-bottom: 8px; }
+  .s3 .grid { row-gap: 18px; }
+  .s5 li { font-size: 15.6px; margin-bottom: 7px; }
+  .s5 td { font-size: 14px; padding: 7px 8px 7px 0; }
+  .s6 .refs li { font-size: 13.6px; line-height: 1.34; margin: 0 0 4px; }
+  .s6 .refs h3 { font-size: 22px; margin: 6px 0 4px; }
+  .s6 .refs h3 i { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-style: normal; font-weight: 700; color: var(--brand); font-size: 17px; margin-right: 7px; }
+  .stat3 { display: grid; grid-template-columns: repeat(3, auto); gap: 30px; margin-top: 26px; justify-content: start; }
+  .stat3 .num { font-size: 46px; }
+  .stat3 p { margin: 6px 0 0; font-size: 13.5px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<!-- ============ 1. TITLE ============ -->
+<section class="slide s1">
+  <div class="bar"><div class="brand"><img src="../../client/public/logo.png" alt="" />VisEvi.</div><div class="team">Team: [Your Team Name]</div><div class="event">CODESLAYER 2k26 &middot; DevSphereIndia</div></div>
+  <div class="body" style="display:grid;grid-template-columns:1.12fr 0.88fr;gap:30px;">
+    <div style="display:flex;flex-direction:column;justify-content:space-between;padding:6px 0 4px;">
+      <div>
+        <p class="eyebrow">Project title</p>
+        <h1 style="font-size:104px;line-height:.95;">VisEvi.</h1>
+        <p style="font-size:30px;font-weight:700;line-height:1.15;margin:14px 0 10px;">Disaster signals, verified from orbit.</p>
+        <p style="font-size:16.5px;line-height:1.4;color:var(--muted);max-width:640px;margin:0;">A sensor or weather signal raises the alarm. VisEvi captures a fresh satellite view of the site, compares it with the same season a year earlier through Cloudinary, confirms or questions the alert, and tells the responsible person.</p>
+        <div class="stat3">
+          <div><div class="num">19</div><p>monitored sites</p></div>
+          <div><div class="num">117</div><p>satellite and field captures</p></div>
+          <div><div class="num">95%</div><p>passing verification</p></div>
+        </div>
+      </div>
+      <div class="card tint" style="padding:16px 18px;">
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 18px;font-size:14.5px;align-items:baseline;">
+          <b>Team name</b><span>[Your Team Name]</span>
+          <b>Members</b><span>[Member 1, role] &nbsp;&middot;&nbsp; [Member 2, role] &nbsp;&middot;&nbsp; [Member 3, role] &nbsp;&middot;&nbsp; [Member 4, role]</span>
+          <b>Tracks chosen</b>
+          <span>
+            <span class="chip on">Sustainability</span><span class="chip on">AI / ML</span><span class="chip on">Internet of Things</span><span class="chip">Healthcare</span><span class="chip">Web3 Development</span><span class="chip">Open Innovation</span>
+          </span>
+        </div>
+      </div>
+    </div>
+    <div style="background:var(--brand);border-radius:12px;display:flex;align-items:center;justify-content:center;padding:10px;">
+      <!-- Hero artwork: sensor reading, satellite beam, before/after -->
+      <svg viewBox="0 0 560 560" width="100%" height="100%" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+        <defs><clipPath id="disc"><circle cx="280" cy="292" r="190"/></clipPath></defs>
+        <circle cx="280" cy="292" r="190" stroke-width="2"/>
+        <g clip-path="url(#disc)">
+          <g stroke-width="1" opacity="0.22"><ellipse cx="280" cy="292" rx="190" ry="60"/><ellipse cx="280" cy="292" rx="190" ry="120"/><ellipse cx="280" cy="292" rx="60" ry="190"/><ellipse cx="280" cy="292" rx="120" ry="190"/><line x1="90" y1="292" x2="470" y2="292"/><line x1="280" y1="102" x2="280" y2="482"/></g>
+          <g stroke-width="1.6">
+            <path d="M110 300 C 130 240, 190 215, 250 232 S 350 200, 405 250 S 470 330, 420 372 S 300 405, 235 385 S 90 360, 110 300 Z" opacity="0.34"/>
+            <path d="M148 300 C 165 255, 205 240, 252 252 S 335 228, 380 265 S 430 322, 392 354 S 300 378, 248 362 S 130 342, 148 300 Z" opacity="0.47"/>
+            <path d="M190 300 C 205 270, 232 262, 262 270 S 322 254, 350 280 S 384 318, 358 338 S 292 350, 258 342 S 176 328, 190 300 Z" opacity="0.6"/>
+            <path d="M228 302 C 238 286, 254 282, 272 287 S 306 280, 322 296 S 338 314, 322 322 S 288 328, 270 324 S 218 316, 228 302 Z" opacity="0.73"/>
+          </g>
+        </g>
+        <line x1="52" y1="150" x2="52" y2="430" stroke-width="2"/>
+        <g stroke-width="1.6" opacity="0.8"><line x1="40" x2="52" y1="150" y2="150"/><line x1="46" x2="52" y1="190" y2="190"/><line x1="40" x2="52" y1="230" y2="230"/><line x1="46" x2="52" y1="270" y2="270"/><line x1="40" x2="52" y1="310" y2="310"/><line x1="46" x2="52" y1="350" y2="350"/><line x1="40" x2="52" y1="390" y2="390"/><line x1="46" x2="52" y1="430" y2="430"/></g>
+        <g fill="#fff" stroke="none" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="700" opacity="0.85"><text x="14" y="155">45</text><text x="14" y="235">35</text><text x="14" y="315">25</text><text x="14" y="395">15</text></g>
+        <path d="M64 196 L84 206 L64 216 Z" fill="#fff" stroke="none"/>
+        <line x1="84" y1="206" x2="304" y2="252" stroke-width="1.4" stroke-dasharray="3 6" opacity="0.7"/>
+        <circle cx="340" cy="258" r="62" stroke-width="2" opacity="0.8"/><circle cx="340" cy="258" r="88" stroke-width="1.6" opacity="0.4"/>
+        <path d="M340 296 C 322 272, 314 262, 314 248 A 26 26 0 1 1 366 248 C 366 262, 358 272, 340 296 Z" fill="#fff" stroke="none"/>
+        <circle cx="340" cy="247" r="10" fill="#d6111e" stroke="none"/>
+        <rect x="384" y="270" width="98" height="38" rx="8" fill="#d6111e" stroke-width="2"/>
+        <text x="433" y="295" text-anchor="middle" fill="#fff" stroke="none" font-family="Helvetica, Arial, sans-serif" font-size="20" font-weight="700">41.3 °C</text>
+        <g transform="rotate(-24 280 292)"><ellipse cx="280" cy="292" rx="262" ry="96" stroke-width="1.6" stroke-dasharray="4 10" opacity="0.7"/></g>
+        <g transform="translate(468 108) rotate(28)"><rect x="-11" y="-8" width="22" height="16" rx="2" fill="#d6111e" stroke-width="2.2"/><rect x="-44" y="-6" width="28" height="12" fill="#d6111e" stroke-width="2"/><rect x="16" y="-6" width="28" height="12" fill="#d6111e" stroke-width="2"/><line x1="-30" y1="-6" x2="-30" y2="6" stroke-width="1.2"/><line x1="30" y1="-6" x2="30" y2="6" stroke-width="1.2"/><line x1="0" y1="8" x2="0" y2="16" stroke-width="2"/><circle cx="0" cy="18" r="2.4" fill="#fff" stroke="none"/></g>
+        <line x1="456" y1="128" x2="352" y2="240" stroke-width="2.2" stroke-dasharray="10 6"/>
+        <rect x="360" y="392" width="170" height="112" rx="10" fill="#d6111e" stroke-width="2.2"/>
+        <line x1="445" y1="392" x2="445" y2="504" stroke-width="1.6" stroke-dasharray="4 5"/>
+        <path d="M372 470 C 390 440, 410 452, 428 428" stroke-width="1.6" opacity="0.75"/><path d="M372 486 C 394 462, 414 474, 432 452" stroke-width="1.6" opacity="0.5"/>
+        <path d="M459 470 C 474 458, 490 462, 516 430" stroke-width="1.6" opacity="0.75"/><path d="M459 486 C 476 476, 494 480, 518 452" stroke-width="1.6" opacity="0.5"/>
+        <g fill="#fff" stroke="none" font-family="Helvetica, Arial, sans-serif" font-size="11" font-weight="700" letter-spacing="1.4"><text x="372" y="412">BEFORE</text><text x="459" y="412">AFTER</text></g>
+        <line x1="340" y1="296" x2="400" y2="392" stroke-width="1.4" stroke-dasharray="3 6" opacity="0.7"/>
+      </svg>
+    </div>
+  </div>
+  <div class="foot"><span>Disaster signals, verified from orbit</span><span>1 / 6</span></div>
+</section>
+
+<!-- ============ 2. PROBLEM & AUDIENCE ============ -->
+<section class="slide s2">
+  <div class="bar"><div class="brand"><img src="../../client/public/logo.png" alt="" />VisEvi.</div><div class="team">Team: [Your Team Name]</div><div class="event">CODESLAYER 2k26 &middot; DevSphereIndia</div></div>
+  <div class="body">
+    <div class="slide-title"><div><p class="eyebrow">Problem statement and target audience</p><h2>A warning is not proof, and proof rarely reaches the right person in time.</h2></div><span class="n">2 / 6</span></div>
+    <div style="display:grid;grid-template-columns:1.25fr 1fr;gap:26px;">
+      <div>
+        <h3>The problem</h3>
+        <ul>
+          <li><b>Signals and evidence are disconnected.</b> A forecast or sensor produces a number, but nobody can quickly see, verify and document what is happening on the ground.</li>
+          <li><b>Field evidence is manual and easy to fake.</b> Photos are sorted by hand, reused across reports, and hard to trace to their source.</li>
+          <li><b>Warning coverage is incomplete.</b> Half of the world's countries still lack multi-hazard early warning systems; the UN goal is coverage for everyone by 2027.</li>
+          <li><b>Even impact figures are contested.</b> Press reports of India's national surveillance data give 56 confirmed heatstroke deaths for March to May 2024 and 14 for March to June 2024.</li>
+        </ul>
+        <div class="grid" style="grid-template-columns:repeat(4,1fr);margin-top:16px;">
+          <div class="card tint"><div class="num" style="font-size:33px;">7,348</div><p class="small muted" style="margin:6px 0 0;">recorded disasters, 2000 to 2019</p></div>
+          <div class="card tint"><div class="num" style="font-size:33px;">1.23 M</div><p class="small muted" style="margin:6px 0 0;">lives lost</p></div>
+          <div class="card tint"><div class="num" style="font-size:33px;">4.2 B</div><p class="small muted" style="margin:6px 0 0;">people affected</p></div>
+          <div class="card tint"><div class="num" style="font-size:30px;padding-top:3px;">US$2.97 T</div><p class="small muted" style="margin:6px 0 0;">economic losses</p></div>
+        </div>
+        <p class="small muted" style="margin:8px 0 0;">Climate-related disasters rose from 3,656 (1980 to 1999) to 6,681 (2000 to 2019). Sources: UNDRR and CRED, 2020; UNDRR and WMO, 2022 (see References).</p>
+      </div>
+      <div>
+        <h3>Who faces it</h3>
+        <div class="card" style="margin-bottom:10px;"><p class="eyebrow" style="margin:0 0 4px;">B2G: primary</p><p class="small" style="margin:0;">State and district disaster management authorities, municipal corporations, control-room officers. <span class="muted">Typically professionals in their late 20s to 50s.</span></p></div>
+        <div class="card" style="margin-bottom:10px;"><p class="eyebrow" style="margin:0 0 4px;">B2B</p><p class="small" style="margin:0;">Parametric and crop insurers verifying events, utilities and infrastructure operators, agri-cooperatives.</p></div>
+        <div class="card" style="margin-bottom:10px;"><p class="eyebrow" style="margin:0 0 4px;">NGOs and sustainability teams</p><p class="small" style="margin:0;">Humanitarian programme teams, CSR and ESG auditors who must prove what happened, where and when.</p></div>
+        <div class="card tint"><p class="eyebrow" style="margin:0 0 4px;">Indirect beneficiaries</p><p class="small" style="margin:0;">Communities in heat-, flood- and cyclone-prone regions who get a faster, better-founded warning. No B2C product at this stage.</p></div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>Problem statement and target audience</span><span>VisEvi</span></div>
+</section>
+
+<!-- ============ 3. SOLUTION ============ -->
+<section class="slide s3">
+  <div class="bar"><div class="brand"><img src="../../client/public/logo.png" alt="" />VisEvi.</div><div class="team">Team: [Your Team Name]</div><div class="event">CODESLAYER 2k26 &middot; DevSphereIndia</div></div>
+  <div class="body">
+    <div class="slide-title"><div><p class="eyebrow">Our unique solution</p><h2>Signal, satellite proof, verdict, notification: one closed loop.</h2></div><span class="n">3 / 6</span></div>
+    <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:12px 18px;">
+      <div class="step"><div class="b">1</div><p><b>Signal watch</b>Live temperature and coastal waves at every monitored site, judged against ten years of local history plus fixed limits. Field sensors post to a webhook.</p></div>
+      <div class="step"><div class="b">2</div><p><b>Automatic satellite capture</b>An alert pulls a fresh NASA Worldview snapshot of the site, screens out cloud and no-data days, and sends it through Cloudinary (enhance, AI Vision).</p></div>
+      <div class="step"><div class="b">3</div><p><b>Before / after verdict</b>Compared with the same season a year earlier; vegetation, water-like area and cloud are measured. Result: confirmed, not confirmed or inconclusive.</p></div>
+      <div class="step"><div class="b">4</div><p><b>Notify the right person</b>Responsible contacts get email or free ntfy push, with the evidence and a full audit log of every message.</p></div>
+      <div class="step"><div class="b">5</div><p><b>Risk index with confidence</b>0 to 100 from six sourced factors (NASA hazard maps, live, forecast, incidents, nearby events, imagery), plus a separate confidence score.</p></div>
+      <div class="step"><div class="b">6</div><p><b>Trust layer</b>Satellite images are re-requested from NASA to prove provenance; duplicates, wrong content and false dates are flagged; every asset traces to its Cloudinary ID and transformations.</p></div>
+    </div>
+    <div class="grid" style="grid-template-columns:1.5fr 1fr;gap:20px;margin-top:16px;">
+      <div>
+        <h3>Why it is different</h3>
+        <table>
+          <tr><th style="width:26%">Existing alternative</th><th>What it does</th><th style="width:34%">What is missing</th></tr>
+          <tr><td><b>Weather and warning apps</b></td><td>Publish a forecast or alert</td><td>No proof from the ground, no per-site follow-up</td></tr>
+          <tr><td><b>Satellite viewers</b></td><td>Show imagery on demand</td><td>Manual, no trigger, no verdict, no notification</td></tr>
+          <tr><td><b>Global event feeds</b></td><td>List fires, storms, floods</td><td>Not checked at your site; no owner told</td></tr>
+          <tr><td><b>Media managers</b></td><td>Store and transform photos</td><td>No live signal, no verification</td></tr>
+        </table>
+      </div>
+      <div class="card tint">
+        <h3>Novelty</h3>
+        <ul>
+          <li><b>Sensor-triggered, satellite-verified alerts</b> in one product.</li>
+          <li><b>Honest by design:</b> "inconclusive" is a real answer; a metric that could not be calibrated was dropped, not shown.</li>
+          <li><b>Cloudinary beyond storage:</b> pre-processing, AI Vision, provenance, and a one-URL before/after board with the reading stamped on it.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>Our unique solution</span><span>VisEvi</span></div>
+</section>
+
+<!-- ============ 4. TECH STACK + ARCHITECTURE ============ -->
+<section class="slide s4">
+  <div class="bar"><div class="brand"><img src="../../client/public/logo.png" alt="" />VisEvi.</div><div class="team">Team: [Your Team Name]</div><div class="event">CODESLAYER 2k26 &middot; DevSphereIndia</div></div>
+  <div class="body">
+    <div class="slide-title"><div><p class="eyebrow">Tech stack and architecture</p><h2>Free public data in, verified alerts out.</h2></div><span class="n">4 / 6</span></div>
+    <div style="display:grid;grid-template-columns:0.82fr 1.4fr;gap:22px;">
+      <div>
+        <h3>Tech stack</h3>
+        <table>
+          <tr><td style="width:27%"><b>Frontend</b></td><td>React 19, Vite, TypeScript, Tailwind CSS 4, React Router, Leaflet, hand-built SVG charts</td></tr>
+          <tr><td><b>Backend</b></td><td>Node.js, Express 5, TypeScript, sharp (image analysis), Nodemailer, Multer</td></tr>
+          <tr><td><b>Database</b></td><td>MongoDB Atlas: sites, readings, alerts, assets, contacts, notifications</td></tr>
+          <tr><td><b>Media + AI</b></td><td>Cloudinary: upload, auto-orient / enhance / sharpen, AI Vision, overlay transformations</td></tr>
+          <tr><td><b>Data APIs</b></td><td>Open-Meteo (forecast, ERA5 history, marine); NASA GIBS, Worldview Snapshots, EONET, SEDAC hazard maps; OpenStreetMap and Nominatim</td></tr>
+          <tr><td><b>Alerts out</b></td><td>SMTP email, ntfy.sh push</td></tr>
+          <tr><td><b>Deploy</b></td><td>Vercel (client), Render (API), Atlas</td></tr>
+        </table>
+      </div>
+      <div>
+        <svg viewBox="0 0 760 500" style="display:block;height:430px;width:auto;max-width:100%;margin:0 auto;" font-family="Helvetica, Arial, sans-serif">
+          <defs>
+            <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#2a0b0e"/></marker>
+          </defs>
+          <!-- sources -->
+          <text x="0" y="14" font-size="12" font-weight="700" fill="#7a5257" letter-spacing="1.5">PUBLIC DATA + SENSORS</text>
+          <rect x="0" y="24" width="176" height="92" rx="8" fill="#fff5f5" stroke="#efd3d4"/>
+          <text x="12" y="46" font-size="14" font-weight="700" fill="#2a0b0e">Open-Meteo</text>
+          <text x="12" y="65" font-size="11.5" fill="#7a5257">forecast, ERA5 10-year</text><text x="12" y="80" font-size="11.5" fill="#7a5257">history, marine waves</text>
+          <rect x="0" y="130" width="176" height="122" rx="8" fill="#fff5f5" stroke="#efd3d4"/>
+          <text x="12" y="152" font-size="14" font-weight="700" fill="#2a0b0e">NASA</text>
+          <text x="12" y="171" font-size="11.5" fill="#7a5257">Worldview snapshots</text><text x="12" y="186" font-size="11.5" fill="#7a5257">GIBS map layers</text><text x="12" y="201" font-size="11.5" fill="#7a5257">EONET live events</text><text x="12" y="216" font-size="11.5" fill="#7a5257">SEDAC hazard maps</text>
+          <rect x="0" y="266" width="176" height="62" rx="8" fill="#fff5f5" stroke="#efd3d4"/>
+          <text x="12" y="288" font-size="14" font-weight="700" fill="#2a0b0e">Field sensors</text>
+          <text x="12" y="306" font-size="11.5" fill="#7a5257">webhook (optional)</text>
+          <!-- API -->
+          <rect x="236" y="14" width="300" height="386" rx="12" fill="#fff" stroke="#d6111e" stroke-width="2.5"/>
+          <text x="252" y="38" font-size="14" font-weight="700" fill="#d6111e">VisEvi API</text><text x="252" y="54" font-size="11.5" fill="#7a5257">Node.js, Express 5, TypeScript</text>
+          <g font-size="12.5" fill="#2a0b0e">
+            <rect x="252" y="66" width="268" height="54" rx="7" fill="#fff5f5" stroke="#efd3d4"/><circle cx="270" cy="93" r="10" fill="#d6111e"/><text x="270" y="97" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">1</text>
+            <text x="288" y="88" font-weight="700">Signal engine</text><text x="288" y="104" font-size="11.5" fill="#7a5257">reading vs local normal + limits</text>
+            <rect x="252" y="130" width="268" height="54" rx="7" fill="#fff5f5" stroke="#efd3d4"/><circle cx="270" cy="157" r="10" fill="#d6111e"/><text x="270" y="161" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">2</text>
+            <text x="288" y="152" font-weight="700">Auto-capture pipeline</text><text x="288" y="168" font-size="11.5" fill="#7a5257">NASA snapshot, cloud screen, ingest</text>
+            <rect x="252" y="194" width="268" height="54" rx="7" fill="#fff5f5" stroke="#efd3d4"/><circle cx="270" cy="221" r="10" fill="#d6111e"/><text x="270" y="225" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">3</text>
+            <text x="288" y="216" font-weight="700">Verify and compare</text><text x="288" y="232" font-size="11.5" fill="#7a5257">provenance, same-season, verdict</text>
+            <rect x="252" y="258" width="268" height="54" rx="7" fill="#fff5f5" stroke="#efd3d4"/><circle cx="270" cy="285" r="10" fill="#d6111e"/><text x="270" y="289" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">4</text>
+            <text x="288" y="280" font-weight="700">Risk index and confidence</text><text x="288" y="296" font-size="11.5" fill="#7a5257">six sourced factors, 0 to 100</text>
+            <rect x="252" y="322" width="268" height="66" rx="7" fill="#fff5f5" stroke="#efd3d4"/><circle cx="270" cy="355" r="10" fill="#d6111e"/><text x="270" y="359" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">5</text>
+            <text x="288" y="350" font-weight="700">Notifier</text><text x="288" y="366" font-size="11.5" fill="#7a5257">confirmed or emergency alerts,</text><text x="288" y="380" font-size="11.5" fill="#7a5257">with an audit log</text>
+          </g>
+          <!-- cloudinary + db -->
+          <rect x="596" y="14" width="164" height="196" rx="8" fill="#d6111e"/>
+          <text x="610" y="40" font-size="14" font-weight="700" fill="#fff">Cloudinary</text>
+          <g fill="#fff" font-size="11.5"><text x="610" y="62">upload + pre-processing</text><text x="610" y="79">(orient, enhance, sharpen)</text><text x="610" y="103">AI Vision: activity,</text><text x="610" y="120">objects, tags, caption</text><text x="610" y="144">overlays: one-URL</text><text x="610" y="161">before / after board</text><text x="610" y="185">public ID + version</text><text x="610" y="200">for traceability</text></g>
+          <rect x="596" y="228" width="164" height="172" rx="8" fill="#fff5f5" stroke="#d6111e" stroke-width="2"/>
+          <text x="610" y="254" font-size="14" font-weight="700" fill="#2a0b0e">MongoDB Atlas</text>
+          <g fill="#7a5257" font-size="11.5"><text x="610" y="278">sites and readings</text><text x="610" y="296">alerts + pipeline state</text><text x="610" y="314">assets + verification</text><text x="610" y="332">contacts, notifications</text><text x="610" y="350">climate normals cache</text></g>
+          <!-- client + officer -->
+          <rect x="236" y="430" width="300" height="60" rx="8" fill="#fff5f5" stroke="#efd3d4"/>
+          <text x="250" y="452" font-size="14" font-weight="700" fill="#2a0b0e">React client</text>
+          <text x="250" y="470" font-size="11.5" fill="#7a5257">Dashboard, Disaster watch, Compare,</text><text x="250" y="484" font-size="11.5" fill="#7a5257">Site report, Evidence graph</text>
+          <rect x="596" y="430" width="164" height="60" rx="8" fill="#2a0b0e"/>
+          <text x="610" y="452" font-size="14" font-weight="700" fill="#fff">Responsible officer</text>
+          <text x="610" y="470" font-size="11.5" fill="#f6b6ba">email, ntfy push</text>
+          <!-- arrows -->
+          <g stroke="#2a0b0e" stroke-width="2" fill="none" marker-end="url(#ar)">
+            <path d="M176 70 L232 88"/><path d="M176 190 L232 190"/><path d="M176 297 L232 297"/>
+            <path d="M536 100 L592 100" marker-start="url(#ar)"/>
+            <path d="M536 314 L592 314" marker-start="url(#ar)"/>
+            <path d="M386 400 L386 426" marker-start="url(#ar)"/>
+            <path d="M520 355 C 560 355, 560 460, 592 460"/>
+          </g>
+          <text x="198" y="66" font-size="11" font-weight="700" fill="#d6111e">signal</text>
+          <text x="544" y="92" font-size="11" font-weight="700" fill="#d6111e">analyse</text>
+        </svg>
+        <p class="small muted" style="margin:4px 0 0;font-size:12px;">Flow: <b>1</b> reading breaches a limit or the local normal, <b>2</b> alert triggers a NASA capture, <b>3</b> Cloudinary analyses it, and it is compared and given a verdict, <b>4</b> risk is recomputed, <b>5</b> the responsible officer is told.</p>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>Tech stack and architecture</span><span>VisEvi</span></div>
+</section>
+
+<!-- ============ 5. FEASIBILITY / USP + BUSINESS ============ -->
+<section class="slide s5">
+  <div class="bar"><div class="brand"><img src="../../client/public/logo.png" alt="" />VisEvi.</div><div class="team">Team: [Your Team Name]</div><div class="event">CODESLAYER 2k26 &middot; DevSphereIndia</div></div>
+  <div class="body">
+    <div class="slide-title"><div><p class="eyebrow">Feasibility, showstoppers, USP and business model</p><h2>Built, running, and honest about its limits.</h2></div><span class="n">5 / 6</span></div>
+    <div style="display:grid;grid-template-columns:1.18fr 1fr;gap:24px;">
+      <div>
+        <h3>Feasibility: it already runs</h3>
+        <ul>
+          <li><b>Working prototype:</b> 19 monitored sites, 117 captures across 23 projects (95% verified), 22 alerts, including a replayed May 2024 heat wave (Barmer 48.0 °C).</li>
+          <li><b>Zero paid data:</b> every source is free and keyless; only Cloudinary and MongoDB accounts are needed.</li>
+          <li><b>Tested end to end</b> with real NASA and Cloudinary calls. The 15-minute poll raised and captured a live alert without anyone pressing a button.</li>
+          <li><b>Team fit:</b> full-stack TypeScript, geospatial data, Cloudinary; built in incremental milestones inside the hackathon window.</li>
+        </ul>
+        <h3 style="margin-top:8px;">Showstoppers and mitigation</h3>
+        <table>
+          <tr><th style="width:38%">Risk</th><th>Mitigation</th></tr>
+          <tr><td><b>Satellite resolution</b> is about 250 m per pixel</td><td>"Inconclusive" is a first-class verdict; roadmap: Sentinel-2 at 10 m</td></tr>
+          <tr><td><b>Cloud cover</b> and no-data days</td><td>Automatic screening, retry over 10 days, reuse a recent capture</td></tr>
+          <tr><td><b>Free-API terms</b> and limits</td><td>Caching, provider swap (Google Weather optional), paid plans when commercial</td></tr>
+          <tr><td><b>Cloudinary quota</b></td><td>Capture only when an alert fires; reuse within 8 days</td></tr>
+          <tr><td><b>False alarms</b>, unvalidated weights</td><td>Anomaly must also be stressful; confidence score; back-test against EM-DAT next</td></tr>
+        </table>
+      </div>
+      <div>
+        <div class="card tint" style="margin-bottom:12px;">
+          <h3>USP</h3>
+          <p style="font-size:15px;line-height:1.35;margin:0 0 6px;"><b>One product closes the loop from a live signal to a satellite-verified, notified alert,</b> with a transparent risk score and a confidence value that says how far to trust it.</p>
+          <ul><li>Confirms or questions every alert with imagery.</li><li>Provenance-checked evidence, not just organised evidence.</li><li>Free public data keeps the cost of each site low.</li></ul>
+        </div>
+        <h3>Business model</h3>
+        <table>
+          <tr><td style="width:34%"><b>Customers</b></td><td>State and district disaster authorities (B2G); insurers and utilities (B2B); NGOs and CSR or ESG auditors</td></tr>
+          <tr><td><b>Subscription</b></td><td>Per monitored site per month, tiered by site count and check frequency</td></tr>
+          <tr><td><b>Verified-event API</b></td><td>Per event or claim check for insurers, via webhook</td></tr>
+          <tr><td><b>Services</b></td><td>Onboarding: thresholds, contacts and local-language setup</td></tr>
+          <tr><td><b>Free tier</b></td><td>NGO and community use, built on open data</td></tr>
+          <tr><td><b>Sustainability</b></td><td>Costs are event-driven (one AI analysis per capture, only on alerts), so margin grows with sites, not with time</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>Feasibility, showstoppers, USP and business model</span><span>VisEvi</span></div>
+</section>
+
+<!-- ============ 6. REFERENCES ============ -->
+<section class="slide s6">
+  <div class="bar"><div class="brand"><img src="../../client/public/logo.png" alt="" />VisEvi.</div><div class="team">Team: [Your Team Name]</div><div class="event">CODESLAYER 2k26 &middot; DevSphereIndia</div></div>
+  <div class="body">
+    <div class="slide-title"><div><p class="eyebrow">References</p><h2>Where the numbers and methods come from.</h2></div><span class="n">6 / 6</span></div>
+    <div class="refs" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 34px;">
+      <div>
+        <h3><i>1</i>Research papers and journals</h3>
+        <ul><li>Hersbach, H. et al. (2020). The ERA5 global reanalysis. <i>Q. J. R. Meteorol. Soc.</i> 146, 1999-2049.</li><li>Dilley, M. et al. (2005). <i>Natural Disaster Hotspots: A Global Risk Analysis.</i> World Bank.</li><li>Justice, C. O. et al. (1998). MODIS: land remote sensing for global change research. <i>IEEE TGRS</i> 36(4).</li><li>Woebbecke, D. M. et al. (1995). Color indices for weed identification. <i>Trans. ASAE</i> 38(1) (excess-green index).</li></ul>
+        <h3><i>2</i>Official documentation</h3>
+        <ul><li>Cloudinary documentation: upload, transformations, layers, AI Vision. cloudinary.com/documentation</li><li>NASA GIBS API docs. nasa-gibs.github.io/gibs-api-docs</li><li>NASA EONET API v3. eonet.gsfc.nasa.gov/docs/v3</li><li>Open-Meteo API docs. open-meteo.com/en/docs</li></ul>
+        <h3><i>3</i>Open-source libraries</h3>
+        <ul><li>React, Vite, Tailwind CSS, React Router, Leaflet (client)</li><li>Express, MongoDB Node driver, sharp, Nodemailer, Multer, Cloudinary SDK (server)</li></ul>
+        <h3><i>4</i>APIs and developer documentation</h3>
+        <ul><li>Open-Meteo forecast, archive and marine APIs; NASA Worldview Snapshots and GIBS WMTS; NASA EONET</li><li>OpenStreetMap tiles and Nominatim geocoding; ntfy.sh push (docs.ntfy.sh)</li></ul>
+      </div>
+      <div>
+        <h3><i>5</i>Datasets and data sources</h3>
+        <ul><li>ERA5 hourly temperature via Open-Meteo archive (ten-year local climate normals)</li><li>NASA SEDAC Natural Disaster Hotspots: drought, flood, cyclone, landslide layers, served by GIBS</li><li>MODIS Terra corrected reflectance and land surface temperature; SMAP soil moisture; GPM IMERG rainfall</li><li>EM-DAT (CRED) disaster database, as summarised by UNDRR</li></ul>
+        <h3><i>6</i>Industry reports and case studies</h3>
+        <ul><li>UNDRR and CRED (2020). <i>The Human Cost of Disasters 2000-2019.</i> undrr.org/publication/human-cost-disasters-2000-2019</li><li>UNDRR and WMO (2022). <i>Global Status of Multi-Hazard Early Warning Systems.</i></li><li>UN Early Warnings for All initiative. wmo.int/activities/early-warnings-all</li></ul>
+        <h3><i>7</i>Other online resources</h3>
+        <ul><li>Sendai Framework for Disaster Risk Reduction 2015-2030 (UNDRR)</li><li>India Meteorological Department heat wave criteria (basis of the fixed thresholds)</li><li>Krawetz, N. (2013). <i>Kind of Like That</i> (difference-hash image fingerprinting)</li><li>Press reports of NCDC heatstroke data: Business Today, 1 Jun 2024 (56 deaths, March to May); Deccan Herald, 28 Jul 2025 (14 deaths, March to June)</li></ul>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>References</span><span>VisEvi</span></div>
+</section>
+
+</body>
+</html>

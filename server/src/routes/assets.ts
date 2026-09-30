@@ -1,20 +1,11 @@
 import { Router } from 'express'
-import { ObjectId, type Db } from 'mongodb'
+import { ObjectId } from 'mongodb'
 import multer from 'multer'
-import {
-  analyzeAsset,
-  CloudinaryAnalysisError,
-  IMAGE_PREPROCESSING,
-  uploadBuffer,
-  videoPosterUrl,
-} from '../lib/cloudinary.js'
-import { bumpData, cached } from '../lib/cache.js'
+import { cached } from '../lib/cache.js'
+import { ingestAsset, reverify } from '../lib/ingest.js'
 import { observationText } from '../lib/lexicon.js'
 import { getDb } from '../lib/mongo.js'
-import { readCaptureDate } from '../lib/exif.js'
-import { dHash } from '../lib/phash.js'
 import { semanticSearch } from '../lib/semantic.js'
-import { verifyAsset, type VerifyContext } from '../lib/verify.js'
 import type { AssetDocument, LocationDocument, ProjectDocument } from '../lib/models.js'
 
 export const assetsRouter = Router()
@@ -48,6 +39,7 @@ function serializeAsset(
     verification: extra.light ? null : (asset.verification ?? null),
     transformations: extra.light ? [] : (asset.transformations ?? []),
     observation: asset.observation,
+    capture: asset.capture ?? null,
     // Present only on the upload response, and only when analysis was
     // attempted and failed — never fabricated in its place. See
     // ARCHITECTURE.md § M2 for why the upload still succeeds in this case.
@@ -55,45 +47,6 @@ function serializeAsset(
     ...(extra.match ? { match: extra.match } : {}),
     createdAt: asset.createdAt.toISOString(),
   }
-}
-
-/** All assets with their project names — the reference set for the
- * duplicate and project-theme checks. Fine at hackathon scale; index
- * perceptualHash / use a BK-tree before this holds tens of thousands. */
-async function loadLibrary(db: Db): Promise<VerifyContext['others']> {
-  const [assets, projects] = await Promise.all([
-    db
-      .collection<AssetDocument>('assets')
-      .find({}, { projection: { observation: 1, perceptualHash: 1, projectId: 1, stage: 1, createdAt: 1 } })
-      .toArray(),
-    db.collection<ProjectDocument>('projects').find({}).toArray(),
-  ])
-  const names = new Map(projects.map((p) => [p._id.toHexString(), p.name]))
-  return assets.map((a) => ({ ...a, projectName: names.get(a.projectId.toHexString()) ?? 'Unknown' }))
-}
-
-async function reverify(db: Db, asset: AssetDocument): Promise<AssetDocument> {
-  const [project, location, others] = await Promise.all([
-    db.collection<ProjectDocument>('projects').findOne({ _id: asset.projectId }),
-    asset.locationId ? db.collection<LocationDocument>('locations').findOne({ _id: asset.locationId }) : null,
-    loadLibrary(db),
-  ])
-  const result = verifyAsset({
-    asset,
-    projectName: project?.name ?? 'Unknown',
-    projectDescription: project?.description,
-    locationName: location?.name ?? null,
-    others,
-  })
-  const patch = {
-    verificationStatus: result.status,
-    verificationNote: result.note,
-    verification: result.verification,
-    updatedAt: new Date(),
-  }
-  await db.collection<AssetDocument>('assets').updateOne({ _id: asset._id }, { $set: patch })
-  bumpData()
-  return { ...asset, ...patch }
 }
 
 assetsRouter.get('/', async (req, res, next) => {
@@ -251,97 +204,33 @@ assetsRouter.post('/upload', upload.single('file'), async (req, res, next) => {
       return
     }
 
-    const resourceType = file.mimetype.startsWith('video/') ? 'video' : 'image'
-    const db = getDb()
-    const now = new Date()
+    const lat = req.body.lat !== undefined && req.body.lat !== '' ? Number(req.body.lat) : null
+    const lng = req.body.lng !== undefined && req.body.lng !== '' ? Number(req.body.lng) : null
 
-    const projects = db.collection<ProjectDocument>('projects')
-    const project = await projects.findOneAndUpdate(
-      { name: projectName },
-      {
-        $setOnInsert: { name: projectName, description: null, createdAt: now },
-        $set: { updatedAt: now },
-      },
-      { upsert: true, returnDocument: 'after' },
-    )
-    if (!project) throw new Error('Failed to upsert project')
-
-    const locations = db.collection<LocationDocument>('locations')
-    const location = await locations.findOneAndUpdate(
-      { projectId: project._id, name: locationName },
-      { $setOnInsert: { projectId: project._id, name: locationName, createdAt: now } },
-      { upsert: true, returnDocument: 'after' },
-    )
-    if (!location) throw new Error('Failed to upsert location')
-
-    // Perceptual hash of the raw bytes, taken before Cloudinary's
-    // pre-processing so the same source photo always hashes the same.
-    let perceptualHash: string | null = null
-    let exifCapturedAt: Date | null = null
-    if (resourceType === 'image') {
-      try {
-        ;[perceptualHash, exifCapturedAt] = await Promise.all([dHash(file.buffer), readCaptureDate(file.buffer)])
-      } catch (err) {
-        console.error('Perceptual hash failed (image unreadable?):', err)
+    // A client may say "this is a NASA Worldview snapshot" (sourceKind + halfDeg).
+    // The server does not take that on trust: ingestAsset re-requests the snapshot
+    // from NASA and only marks it verified if the upload matches.
+    let capture: { halfDeg: number; date: string; trusted: boolean } | undefined
+    if (req.body.sourceKind === 'nasa-worldview') {
+      const halfDeg = Number(req.body.halfDeg)
+      if (!capturedAt || !Number.isFinite(halfDeg) || halfDeg <= 0 || halfDeg > 5 || lat === null || lng === null) {
+        res.status(400).json({ error: 'a nasa-worldview snapshot needs capturedAt, lat, lng and a halfDeg between 0 and 5' })
+        return
       }
+      capture = { halfDeg, date: capturedAt.toISOString().slice(0, 10), trusted: false }
     }
 
-    const uploaded = await uploadBuffer(file.buffer, {
-      folder: `visevi/${project._id.toHexString()}`,
-      resourceType,
-    })
-
-    // A failure here does not fail the upload — the asset and its
-    // Cloudinary media are already real and traceable; the observation is
-    // just absent, with the reason stated explicitly rather than invented.
-    // Video is analysed through a still frame (AI Vision is image-only).
-    let observation: AssetDocument['observation'] = null
-    let observationError: string | undefined
-    try {
-      observation = await analyzeAsset(
-        resourceType === 'image'
-          ? { assetId: uploaded.assetId, url: uploaded.url }
-          : { assetId: null, url: videoPosterUrl(uploaded.url) },
-      )
-      if (resourceType === 'video' && observation) {
-        observation.source += ' (video frame @1s)'
-      }
-    } catch (err) {
-      observationError =
-        err instanceof CloudinaryAnalysisError ? err.message : 'AI analysis failed unexpectedly'
-      console.error('Cloudinary AI Vision analysis failed:', err)
-    }
-
-    const assetDoc: Omit<AssetDocument, '_id'> = {
-      cloudinaryPublicId: uploaded.publicId,
-      cloudinaryAssetId: uploaded.assetId ?? null,
-      cloudinaryUrl: uploaded.url,
-      cloudinaryVersion: uploaded.version,
-      resourceType,
-      projectId: project._id,
-      locationId: location._id,
-      capturedAt,
-      // From the original bytes: Cloudinary's response can't provide it (see lib/exif.ts).
-      exifCapturedAt: exifCapturedAt ?? uploaded.exifCapturedAt,
+    const { asset, project, location, observationError } = await ingestAsset(getDb(), {
+      buffer: file.buffer,
+      mimetype: file.mimetype,
+      projectName,
+      locationName,
       stage,
-      observation,
-      verificationStatus: 'UNVERIFIED',
-      verificationNote: null,
-      verification: null,
-      perceptualHash,
-      transformations:
-        resourceType === 'image' ? IMAGE_PREPROCESSING.map((t) => ({ ...t })) : [],
-      createdAt: now,
-      updatedAt: now,
-    }
-
-    const insertResult = await db.collection<AssetDocument>('assets').insertOne(assetDoc as AssetDocument)
-    bumpData()
-    let asset: AssetDocument = { ...assetDoc, _id: insertResult.insertedId }
-
-    // Verify against the rest of the library now that the asset is persisted.
-    asset = await reverify(db, asset)
-
+      capturedAt,
+      lat,
+      lng,
+      capture,
+    })
     res.status(201).json(serializeAsset(asset, project, location, { observationError }))
   } catch (err) {
     next(err)

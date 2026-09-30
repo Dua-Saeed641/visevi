@@ -20,6 +20,122 @@ export interface LocationDocument {
   _id: ObjectId
   projectId: ObjectId
   name: string
+  /** Optional site coordinates. A location with coordinates becomes a
+   * monitored site: temperature signals are matched to it (see lib/hazards.ts). */
+  lat?: number | null
+  lng?: number | null
+  /** Cached "what is normal here": per-UTC-hour temperature mean and spread
+   * for one calendar month over the last ~10 years (Open-Meteo archive). */
+  climatology?: { month: number; years: number; hourMean: number[]; hourSd: number[]; fetchedAt: Date } | null
+  /** Cached long-run hazard exposure decoded from NASA SEDAC hazard maps (static data). */
+  exposure?: { readings: { hazard: string; score: number; klass: { position: number; of: number } | null }[]; fetchedAt: Date } | null
+  createdAt: Date
+}
+
+export type ReadingSource = 'google-maps-weather' | 'open-meteo' | 'sensor-webhook' | 'demo-simulator' | 'historical-replay'
+
+/** One reading for a monitored site: temperature, and marine data if coastal. */
+export interface ReadingDocument {
+  _id: ObjectId
+  locationId: ObjectId
+  tempC: number
+  feelsLikeC: number | null
+  humidity: number | null
+  condition: string | null
+  /** Normal temperature for this month and hour, and the departure from it. */
+  normalC: number | null
+  anomalyC: number | null
+  /** Marine values; null for inland sites or where the model has no data. */
+  waveHeightM: number | null
+  seaTempC: number | null
+  seaLevelM: number | null
+  source: ReadingSource
+  observedAt: Date
+  createdAt: Date
+}
+
+export type HazardType = 'heatwave' | 'coldwave' | 'highwaves'
+export type HazardSeverity = 'watch' | 'warning' | 'emergency'
+export type AlertStatus = 'open' | 'acknowledged' | 'resolved'
+
+/**
+ * A disaster-management issue raised when a temperature signal crosses a
+ * hazard threshold at a monitored site. The assessment (Cloudinary-backed
+ * before/after comparison, visual corroboration, actions) is computed on
+ * read from the site's evidence, so newly uploaded field media is reflected
+ * without re-raising the alert.
+ */
+export interface AlertDocument {
+  _id: ObjectId
+  locationId: ObjectId
+  type: HazardType
+  severity: HazardSeverity
+  status: AlertStatus
+  /** The reading that first crossed the threshold. `value` is in `unit`
+   * (degrees C for heat/cold, metres for waves). `basis` says what tripped it:
+   * a fixed limit, or a departure from what is normal for this place and month. */
+  trigger: {
+    value: number
+    unit: '°C' | 'm'
+    basis: 'absolute' | 'anomaly'
+    /** Absolute limit crossed, or the departure (°C) for an anomaly. */
+    threshold: number
+    /** Normal temperature at that hour, for anomaly alerts. */
+    normal: number | null
+    feelsLikeC: number | null
+    source: ReadingSource
+    observedAt: Date
+  }
+  peakValue: number
+  latestValue: number
+  readingCount: number
+  /** The automatic satellite capture triggered by this alert (see lib/pipeline.ts). */
+  capture?: {
+    status: 'pending' | 'captured' | 'cloudy' | 'failed'
+    assetId?: ObjectId
+    date?: string
+    note: string
+    at: Date
+  } | null
+  /** Whether the fresh capture, compared with a baseline, confirms the hazard. */
+  confirmation?: {
+    status: 'confirmed' | 'not-confirmed' | 'inconclusive'
+    reasons: string[]
+    baselineAssetId?: ObjectId
+    baselineDate?: string
+    changedPct?: number | null
+    at: Date
+  } | null
+  notifiedAt?: Date | null
+  createdAt: Date
+  updatedAt: Date
+  resolvedAt?: Date | null
+}
+
+/** A person responsible for one or more sites, told when an alert is confirmed. */
+export interface ContactDocument {
+  _id: ObjectId
+  name: string
+  role: string
+  email?: string | null
+  /** ntfy.sh topic: free push notifications to the ntfy phone app, no account or key. */
+  ntfyTopic?: string | null
+  /** Empty = all sites. */
+  locationIds: ObjectId[]
+  minSeverity: HazardSeverity
+  createdAt: Date
+}
+
+export interface NotificationDocument {
+  _id: ObjectId
+  alertId: ObjectId
+  contactId: ObjectId
+  contactName: string
+  channel: 'email' | 'ntfy' | 'log'
+  status: 'sent' | 'failed' | 'logged'
+  subject: string
+  body: string
+  detail: string
   createdAt: Date
 }
 
@@ -27,7 +143,7 @@ export type VerificationStatus = 'UNVERIFIED' | 'VERIFIED' | 'FLAGGED'
 
 /** One explainable check contributing to an asset's verification status. */
 export interface VerificationCheck {
-  id: 'content-claim' | 'project-theme' | 'duplicate' | 'capture-date'
+  id: 'content-claim' | 'project-theme' | 'duplicate' | 'capture-date' | 'provenance'
   label: string
   /** skipped = not enough data to judge; never counted as a pass. */
   result: 'pass' | 'fail' | 'skipped'
@@ -99,6 +215,24 @@ export interface AssetDocument {
    * transformation"); the perceptual hash is taken from the raw bytes
    * before this step. */
   transformations?: TransformationRecord[]
+
+  /**
+   * Set for satellite snapshots captured from NASA Worldview. Such an asset has
+   * no uploader "claim" to test, so it is verified by provenance instead:
+   * `verified` = the server re-requested the same snapshot from NASA and the
+   * uploaded image matched it; `system` = VisEvi fetched it itself; `failed` =
+   * it was presented as a NASA snapshot but did not match.
+   */
+  capture?: {
+    kind: 'nasa-worldview'
+    layer: string
+    lat: number
+    lng: number
+    halfDeg: number
+    date: string
+    provenance: 'verified' | 'system' | 'failed'
+    note: string
+  } | null
 
   createdAt: Date
   updatedAt: Date

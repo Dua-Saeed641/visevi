@@ -18,6 +18,7 @@ export const INDICATORS: IndicatorDef[] = [
   { code: '7.1', goal: 7, title: 'Universal access to affordable, reliable, modern energy', concepts: ['electricity', 'solar-energy', 'clean-cooking'] },
   { code: '7.2', goal: 7, title: 'Increase the share of renewable energy', concepts: ['solar-energy', 'wind-energy'] },
   { code: '13.2', goal: 13, title: 'Integrate climate action into planning and policy', concepts: ['solar-energy', 'wind-energy', 'reforestation', 'mangrove-coastal', 'flood-climate', 'glacier-ice'] },
+  { code: '13.1', goal: 13, title: 'Strengthen resilience and adaptive capacity to climate-related hazards', concepts: ['flood-climate', 'heat-drought', 'wildfire'] },
   { code: '6.1', goal: 6, title: 'Safe and affordable drinking water for all', concepts: ['drinking-water'] },
   { code: '6.2', goal: 6, title: 'Access to adequate sanitation and hygiene', concepts: ['sanitation'] },
   { code: '2.3', goal: 2, title: 'Double agricultural productivity of small-scale producers', concepts: ['agriculture'] },

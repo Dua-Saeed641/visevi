@@ -16,7 +16,7 @@ import type {
 export interface VerifyContext {
   asset: Pick<
     AssetDocument,
-    '_id' | 'observation' | 'stage' | 'capturedAt' | 'exifCapturedAt' | 'perceptualHash' | 'projectId' | 'createdAt'
+    '_id' | 'observation' | 'stage' | 'capturedAt' | 'exifCapturedAt' | 'perceptualHash' | 'projectId' | 'createdAt' | 'capture'
   >
   projectName: string
   projectDescription?: string | null
@@ -135,6 +135,17 @@ function dateCheck(ctx: VerifyContext): VerificationCheck {
 }
 
 /**
+ * Satellite snapshots have no uploader claim to test, so they are judged on
+ * provenance: was this really NASA's view of these coordinates on this date?
+ * Repeat views of one site are the whole point, so the reuse check does not apply.
+ */
+function provenanceCheck(cap: NonNullable<VerifyContext['asset']['capture']>): VerificationCheck {
+  const label = 'Provenance: genuine NASA satellite view'
+  if (cap.provenance === 'failed') return { id: 'provenance', label, result: 'fail', detail: cap.note }
+  return { id: 'provenance', label, result: 'pass', detail: cap.note }
+}
+
+/**
  * Runs all checks and derives the status:
  *  - any failed check            -> FLAGGED (never silently trusted)
  *  - else a content check passed -> VERIFIED
@@ -145,6 +156,28 @@ export function verifyAsset(ctx: VerifyContext): {
   note: string
   verification: VerificationResult
 } {
+  if (ctx.asset.capture) {
+    const p = provenanceCheck(ctx.asset.capture)
+    const dup: VerificationCheck = {
+      id: 'duplicate',
+      label: 'Not a reused photo',
+      result: 'pass',
+      detail: 'Repeat satellite views of the same site on different dates are expected monitoring, not reuse.',
+    }
+    const date: VerificationCheck = {
+      id: 'capture-date',
+      label: 'Capture date matches file metadata',
+      result: 'pass',
+      detail: `The capture date is the satellite acquisition date (${ctx.asset.capture.date}) requested from NASA.`,
+    }
+    const checks = [p, dup, date]
+    const ok = p.result === 'pass'
+    return {
+      status: ok ? 'VERIFIED' : 'FLAGGED',
+      note: ok ? p.detail : p.detail,
+      verification: { checks, evaluatedAt: new Date() },
+    }
+  }
   const checks = [contentCheck(ctx), themeCheck(ctx), duplicateCheck(ctx), dateCheck(ctx)]
   const failed = checks.filter((c) => c.result === 'fail')
   const contentPassed = checks.some((c) => (c.id === 'content-claim' || c.id === 'project-theme') && c.result === 'pass')
